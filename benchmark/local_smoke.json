@@ -1,0 +1,10 @@
+{
+  "targets": [
+    {
+      "name": "local-known-bad-collection",
+      "source": "demo_collection_bad/collection.json",
+      "limit": 1,
+      "intent": "Regression control: must find BAND_COUNT_MISMATCH"
+    }
+  ]
+}

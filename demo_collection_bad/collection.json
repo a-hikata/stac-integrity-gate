@@ -1,0 +1,22 @@
+{
+  "type": "Collection",
+  "stac_version": "1.1.0",
+  "id": "known-bad-collection-band-count",
+  "description": "Synthetic regression for a Collection asset that declares one band while the GeoTIFF has six.",
+  "license": "proprietary",
+  "extent": {
+    "spatial": {"bbox": [[0, 0, 1, 1]]},
+    "temporal": {"interval": [[null, null]]}
+  },
+  "assets": {
+    "data": {
+      "href": "six_band.tif",
+      "type": "image/tiff; application=geotiff",
+      "roles": ["data"],
+      "bands": [
+        {"name": "pfg", "data_type": "uint8", "nodata": 255}
+      ]
+    }
+  },
+  "links": []
+}

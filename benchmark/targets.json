@@ -1,0 +1,61 @@
+{
+  "targets": [
+    {
+      "name": "earth-search-legacy-aot-known-bad",
+      "kind": "item",
+      "source": "https://earth-search.aws.element84.com/v1/collections/sentinel-2-l2a/items/S2B_53MLM_20240709_0_L2A",
+      "assets": ["aot"],
+      "expected_signal": "MISMATCH_FOUND",
+      "intent": "Regression control from Element84 earth-search issue #48: AOT header is 60 m / 1830x1830 while STAC projection metadata was reported as incorrect"
+    },
+    {
+      "name": "earth-search-current-s2-aot",
+      "kind": "collection",
+      "source": "https://earth-search.aws.element84.com/v1/collections/sentinel-2-c1-l2a",
+      "limit": 10,
+      "assets": ["aot"],
+      "intent": "Current Collection-1 AOT sample; tests whether the historical failure class still exists in current production"
+    },
+    {
+      "name": "earth-search-current-s2-red-control",
+      "kind": "collection",
+      "source": "https://earth-search.aws.element84.com/v1/collections/sentinel-2-c1-l2a",
+      "limit": 10,
+      "assets": ["red"],
+      "expected_signal": "NO_MISMATCH_FOUND",
+      "intent": "False-positive control for a standard Sentinel-2 10 m data asset"
+    },
+    {
+      "name": "earth-search-cop-dem-control",
+      "kind": "collection",
+      "source": "https://earth-search.aws.element84.com/v1/collections/cop-dem-glo-30",
+      "limit": 10,
+      "assets": ["data"],
+      "expected_signal": "NO_MISMATCH_FOUND",
+      "intent": "Independent raster/control collection"
+    },
+    {
+      "name": "earth-search-naip-control",
+      "kind": "collection",
+      "source": "https://earth-search.aws.element84.com/v1/collections/naip",
+      "limit": 5,
+      "assets": ["image"],
+      "intent": "Independent imagery/control collection"
+    },
+    {
+      "name": "nrp-rap-pfg-known-bad",
+      "kind": "collection",
+      "source": "https://s3-west.nrp-nautilus.io/public-rap/rap-pfg-cover/stac-collection.json",
+      "limit": 1,
+      "expected_signal": "MISMATCH_FOUND",
+      "intent": "Known 1-band STAC declaration vs 6-band COG regression case from data-workflows issue #666"
+    },
+    {
+      "name": "cdse-sentinel-2-l2a",
+      "kind": "collection",
+      "source": "https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a",
+      "limit": 3,
+      "intent": "Independent STAC 1.1 provider; classify unsupported/non-GeoTIFF assets as inconclusive, not failures"
+    }
+  ]
+}

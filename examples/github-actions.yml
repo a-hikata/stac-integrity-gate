@@ -1,0 +1,13 @@
+name: STAC Integrity
+on: [push, pull_request]
+
+jobs:
+  semantic-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install stac-integrity-gate
+      - run: stac-integrity path/to/item.json --strict
