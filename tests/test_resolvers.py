@@ -342,3 +342,15 @@ def test_cli_resolver_errors_exit_2(tmp_path, capsys, monkeypatch):
 def test_cli_operational_error_is_redacted(capsys):
     assert main(["item", f"/nonexistent/item.json?sig=SuPeRsEcReTsIgNaTuRe"]) == 2
     assert_no_secrets(capsys.readouterr().err)
+
+
+def test_findings_from_optional_modules_are_redacted_at_construction():
+    # Integration guard: Zarr/GeoParquet modules build Finding objects directly
+    # (not via audit_item_dict's redaction), and the text CLI prints
+    # finding.message verbatim. Redaction must happen in Finding itself.
+    from stac_integrity.audit import Finding
+
+    signed = "https://acct.blob.core.windows.net/c/x.zarr?st=2026&se=2026&sp=rl&sig=SECRETSIG"
+    f = Finding("WARN", "ASSET_UNREADABLE", "data", "href", f"Zarr asset could not be opened: 403 {signed}", signed, [signed])
+    for text in (f.message, f.declared, f.actual[0], str(f.to_dict())):
+        assert "SECRETSIG" not in text

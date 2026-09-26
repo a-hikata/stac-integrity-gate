@@ -31,6 +31,10 @@ classifiers = [
 [project.optional-dependencies]
 test = ["pytest", "numpy"]
 planetary-computer = ["planetary-computer>=1"]
+# Optional Zarr semantic checks (metadata only). zarr 3.x reads v2+v3 stores
+# (Python >= 3.11); on Python 3.10 pip resolves zarr 2.18 (v2 stores only).
+# fsspec + aiohttp let zarr open stores over HTTPS.
+zarr = ["zarr>=2.16", "fsspec>=2023.6", "aiohttp"]
 
 [project.scripts]
 stac-integrity = "stac_integrity.cli:main"

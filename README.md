@@ -211,7 +211,7 @@ Resolver failures are `ASSET_RESOLVE_FAILED` (WARN unless `--fail-unreadable`). 
 
 ## Known limitations
 
-- **Zarr**: no semantic validation of Zarr stores.
+- **Zarr** (prototype, optional extra `pip install "stac-integrity-gate[zarr]"`): Zarr v2/v3 array metadata is compared with `proj:shape`, `data_type`, `nodata` and scale/offset (`ZARR_DOUBLE_SCALING_RISK` WARN when STAC repeats CF `scale_factor`/`add_offset`). CRS and datacube fields are not compared. Without the extra, Zarr assets are skipped with a `ZARR_SUPPORT_UNAVAILABLE` WARN. See [docs/zarr-design.md](docs/zarr-design.md).
 - **GeoParquet**: no semantic validation of GeoParquet assets.
 - **Authenticated catalogs**: only Planetary Computer signing is built in (optional extra). Other providers (CDSE, NASA Earthdata, USGS EROS, requester-pays S3) need GDAL configuration or your own resolver; without it their assets are reported as unreadable (WARN).
 - **Vertical CRS**: the vertical component of a compound CRS cannot be verified from a 2D raster header (`CRS_VERTICAL_UNVERIFIED`).
