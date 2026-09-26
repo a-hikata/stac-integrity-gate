@@ -4,6 +4,9 @@ on: [push, pull_request]
 jobs:
   semantic-integrity:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # required by upload-sarif
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -11,4 +14,12 @@ jobs:
           python-version: "3.12"
       # Until the package is on PyPI, install from a wheel or a source checkout instead.
       - run: pip install stac-integrity-gate
-      - run: stac-integrity path/to/item.json --strict
+      # Gate: exit 1 on any ERROR (or any WARN with --strict), 2 on operational failure.
+      # The SARIF report goes to the file; the text summary goes to the job log.
+      - run: stac-integrity path/to/item.json --strict --format sarif --output stac-integrity.sarif
+      # Upload even when the gate failed so findings appear in code scanning / PR annotations.
+      - if: always() && hashFiles('stac-integrity.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: stac-integrity.sarif
+          category: stac-integrity

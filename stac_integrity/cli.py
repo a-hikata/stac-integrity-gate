@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 
 from . import __version__
 from .audit import audit_item
 from .collection import audit_collection
+from .report import FORMATS, gate_failed, render, render_text, write_report
 
 
 def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--asset", action="append", dest="assets", help="Audit only this asset key (repeatable)")
-    p.add_argument("--json", action="store_true", dest="as_json", help="Emit machine-readable JSON")
+    p.add_argument("--json", action="store_const", const="json", dest="format", default="text", help="Alias of --format json")
+    p.add_argument("--format", choices=FORMATS, default="text", help="Report format (default: text)")
+    p.add_argument(
+        "--output",
+        metavar="PATH",
+        help="Write the --format report to PATH; stdout then gets the text summary",
+    )
     p.add_argument("--strict", action="store_true", help="Treat warnings as a failing exit status")
     p.add_argument("--fail-unreadable", action="store_true", help="Treat remote assets that cannot be opened as errors")
     p.add_argument("--all-raster-assets", action="store_true", help="Include visual/overview/thumbnail raster assets; default is data-role assets only")
@@ -69,21 +75,6 @@ def main(argv: list[str] | None = None) -> int:
                 data_assets_only=data_only,
                 unreadable_severity=unreadable,
             )
-            if args.as_json:
-                print(json.dumps(result.to_dict(), indent=2, default=str))
-            else:
-                status = "PASS" if result.ok else "FAIL"
-                print(
-                    f"{status} {result.item_id} | checked: {result.checked_assets} | "
-                    f"skipped: {result.skipped_assets} | errors: {len(result.errors)} | warnings: {len(result.warnings)}"
-                )
-                for finding in result.findings:
-                    asset = f" asset={finding.asset}" if finding.asset else ""
-                    print(f"[{finding.severity}] {finding.code}{asset} field={finding.field}: {finding.message}")
-                    if finding.declared is not None or finding.actual is not None:
-                        print(f"  declared={finding.declared!r}")
-                        print(f"  actual={finding.actual!r}")
-            failed = bool(result.errors or (args.strict and result.warnings))
         else:
             result = audit_collection(
                 args.source,
@@ -94,22 +85,21 @@ def main(argv: list[str] | None = None) -> int:
                 data_assets_only=data_only,
                 unreadable_severity=unreadable,
             )
-            if args.as_json:
-                print(json.dumps(result.to_dict(include_items=not args.summary_only), indent=2, default=str))
-            else:
-                status = "PASS" if result.ok else "FAIL"
-                collection_state = "FAIL" if result.collection_assets_failed else "PASS"
-                print(
-                    f"{status} {result.collection_id} | collection-assets: {collection_state} | "
-                    f"items: {result.items_checked} | failing-items: {result.failing_items} | "
-                    f"assets: {result.checked_assets} | errors: {result.error_count} | warnings: {result.warning_count}"
-                )
-                if result.codes:
-                    print("findings: " + ", ".join(f"{k}={v}" for k, v in result.codes.most_common()))
-            failed = bool(result.error_count or (args.strict and result.warning_count))
     except Exception as exc:
         print(f"stac-integrity: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
+
+    report = render(result, args.format, strict=args.strict, include_items=not getattr(args, "summary_only", False))
+    if args.output:
+        try:
+            write_report(report, args.output)
+        except OSError as exc:
+            print(f"stac-integrity: cannot write report: {exc}", file=sys.stderr)
+            return 2
+        sys.stdout.write(render_text(result))
+    else:
+        sys.stdout.write(report)
+    failed = gate_failed(result, args.strict)
 
     return 1 if failed else 0
 
