@@ -6,7 +6,7 @@ version tag is pushed. Before the first release, work through
 
 ## How the release workflow works
 
-Trigger: `push` of a tag matching `v*` (for example `v0.3.0rc1`). Branch pushes
+Trigger: `push` of a tag matching `v*` (for example `v0.4.0`). Branch pushes
 and pull requests never publish.
 
 | Job | Permissions | What it does |
@@ -41,9 +41,15 @@ after deletion), so the manual environment approval is strongly recommended.
    - Deployment branches and tags: *Selected*, add tag rule `v*`.
 2. PyPI: register a *pending* Trusted Publisher for project
    `stac-integrity-gate` (Account → Publishing):
-   owner / repository = the public repository, workflow = `release.yml`,
+   owner `a-hikata`, repository `stac-integrity-gate`, workflow = `release.yml`,
    environment = `pypi`.
-3. Optional dry run: create a TestPyPI pending publisher and temporarily point
+3. GitHub: *Settings → Secrets and variables → Actions → Variables*, add
+   repository variable `PYPI_PUBLISH` = `true`. Until it is set, the release
+   workflow builds and tests the tag but skips the `publish` job.
+4. Publish an existing tag (e.g. `v0.4.0`): *Actions → Release → Run workflow*,
+   choose the tag as the ref. The tag/version check and the full test matrix
+   run again before the upload.
+5. Optional dry run: create a TestPyPI pending publisher and temporarily point
    a copy of the publish job at TestPyPI
    (`repository-url: https://test.pypi.org/legacy/`, environment `testpypi`).
 

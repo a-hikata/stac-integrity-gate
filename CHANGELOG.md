@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased (post-RC integration candidate, 0.4.0.dev0)
+## 0.4.0 — 2026-09-26
+
+First public release. It includes everything developed for the 0.3.0rc1 release candidate (below; that candidate was never published) plus the following. Zarr and GeoParquet support are **experimental** optional extras.
 
 ### Checks
 - `EO_BAND_COUNT_MISMATCH` (WARN): asset-level `eo:bands` length vs raster band count, only when the asset has no `bands`/`raster:bands`. Item-level `eo:bands` is never compared per asset; trailing alpha bands are ignored.
@@ -37,7 +39,7 @@
 - CI on Python 3.10–3.13 with lint (ruff), build, `twine check` and a clean-venv smoke install; tag-triggered release workflow using PyPI Trusted Publishing (not yet enabled). `docs/releasing.md`, `docs/release-checklist.md`.
 - Offline benchmark/regression platform (`python -m benchmark.run`, manifest of live failure families, baseline diff). Not packaged.
 
-## 0.3.0rc1 — release candidate (unreleased)
+## 0.3.0rc1 — release candidate (not published; included in 0.4.0)
 
 First public release candidate.
 

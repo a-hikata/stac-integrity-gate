@@ -1,8 +1,12 @@
 # stac-integrity-gate
 
-**Checks that the STAC metadata for a raster matches the raster file it points to.**
+[![CI](https://github.com/a-hikata/stac-integrity-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/a-hikata/stac-integrity-gate/actions/workflows/ci.yml)
 
-A STAC Item can be perfectly valid JSON, pass every schema check, and still describe a grid, band layout or CRS that the referenced GeoTIFF does not have. `stac-integrity-gate` opens the asset's header and compares it with what the STAC metadata declares. If they disagree, it fails your CI.
+**stac-integrity-gate verifies that STAC metadata agrees with the actual data asset.**
+
+- Schema validators check that STAC JSON is well-formed. COG validators check that a file is a well-formed GeoTIFF. **Neither compares the two.**
+- This tool opens each asset's header (never the pixels) and compares it with what the STAC Item or Collection declares: CRS, grid (`proj:shape` / `proj:transform` / `proj:bbox`), band count, data type and nodata.
+- It is a **CI gate**: exit `1` on a proven mismatch, `0` otherwise, with text, JSON, SARIF and JUnit output.
 
 ```text
 $ stac-integrity item demo_bad/item.json
@@ -12,11 +16,11 @@ FAIL known-bad-band-count | checked: 1 | skipped: 0 | errors: 1 | warnings: 0
   actual=6
 ```
 
-> Status: **0.4.0.dev0 — post-RC integration candidate** (the first public release candidate is 0.3.0rc1). Not yet published to PyPI.
+> Status: **0.4.0**. The core (GeoTIFF / COG / JPEG2000 raster checks) is stable. **Zarr and GeoParquet support are experimental** optional extras (`[zarr]`, `[geoparquet]`).
 
 ## What problem this solves
 
-Downstream loaders such as odc-stac and stackstac build their pixel grid from STAC `proj:*` metadata without opening every file. When that metadata is wrong, you get misplaced or wrongly sized arrays, often with no error at all. Live examples found during validation (see [docs/validation-evidence.md](docs/validation-evidence.md)):
+Downstream loaders such as odc-stac and stackstac build their pixel grid from STAC `proj:*` metadata without opening every file. When that metadata is wrong, you get misplaced or wrongly sized arrays, often with no error at all. Live examples found during validation (see [docs/validation-evidence.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/docs/validation-evidence.md)):
 
 - A public Sentinel-2 catalog declares a 20 m grid for an AOT asset that is actually 60 m.
 - A public DEM catalog declares a pixel size of `1e-05°` for tiles whose real pixel size is `9.26e-05°`.
@@ -53,23 +57,33 @@ Asset fields take precedence. Otherwise the tool falls back to the Item's `prope
 
 Requires Python ≥ 3.10 and [rasterio](https://rasterio.readthedocs.io/) ≥ 1.3, which bundles GDAL in its wheels.
 
-From a source checkout:
+From PyPI:
 
 ```bash
-python -m pip install .
+python -m pip install stac-integrity-gate
 ```
 
-From a built wheel:
+From GitHub (a tagged release):
 
 ```bash
-python -m pip install dist/stac_integrity_gate-0.4.0.dev0-py3-none-any.whl
+python -m pip install "stac-integrity-gate @ git+https://github.com/a-hikata/stac-integrity-gate@v0.4.0"
 ```
+
+Optional extras. Zarr and GeoParquet support are **experimental**:
+
+```bash
+python -m pip install "stac-integrity-gate[planetary-computer]"  # Planetary Computer SAS signing (--resolver planetary-computer)
+python -m pip install "stac-integrity-gate[zarr]"                # experimental Zarr checks
+python -m pip install "stac-integrity-gate[geoparquet]"          # experimental GeoParquet checks
+```
+
+From a source checkout: `python -m pip install .`
 
 Check the install:
 
 ```bash
 stac-integrity --version
-# stac-integrity 0.4.0.dev0
+# stac-integrity 0.4.0
 ```
 
 ## Quick start
@@ -106,7 +120,7 @@ summary: items: 0 | assets-opened: 1 | cache-hits: 0 | errors: 1 | warnings: 0 |
 
 `--json` prints the full result, including each finding's `severity`, `code`, `asset`, `field`, `declared` and `actual` values.
 
-`--format text|json|sarif|junit` selects the report format (`--json` is an alias of `--format json`). `--output PATH` writes the report to a file and prints the text summary to stdout. JSON reports carry `schema_version`, a `status` (`pass`/`fail`, honouring `--strict`) and a `summary` of counts by severity and code; all earlier keys are unchanged. See [docs/output-formats.md](docs/output-formats.md).
+`--format text|json|sarif|junit` selects the report format (`--json` is an alias of `--format json`). `--output PATH` writes the report to a file and prints the text summary to stdout. JSON reports carry `schema_version`, a `status` (`pass`/`fail`, honouring `--strict`) and a `summary` of counts by severity and code; all earlier keys are unchanged. See [docs/output-formats.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/docs/output-formats.md).
 
 ## Large collections: sampling and politeness
 
@@ -183,8 +197,8 @@ For GitHub code scanning / PR annotations, write SARIF with `--format sarif --ou
 
 | extra | ERROR codes (asset read and contradicting STAC) | WARN codes |
 |---|---|---|
-| `[zarr]`, see [docs/zarr-design.md](docs/zarr-design.md) | `SHAPE_MISMATCH`, `DATA_TYPE_MISMATCH`, `NODATA_MISMATCH`, `SHAPE_INVALID` | `ZARR_DOUBLE_SCALING_RISK`, `ZARR_SCALE_CONFLICT`, `ZARR_SHAPE_UNVERIFIED`, `ZARR_DATA_TYPE_DECODED`, `ZARR_NODATA_NOT_IN_STORE`, `ZARR_FILL_VALUE_DIFFERS`, `ZARR_BANDS_AMBIGUOUS`, `ZARR_GROUP_UNRESOLVED`, `ZARR_BAND_UNRESOLVED`, `ZARR_SUPPORT_UNAVAILABLE` |
-| `[geoparquet]`, see [docs/geoparquet-design.md](docs/geoparquet-design.md) | `TABLE_COLUMN_MISSING`, `TABLE_ROW_COUNT_MISMATCH`, `PRIMARY_GEOMETRY_MISSING` (only when declared on the asset itself; WARN when inherited), `CRS_MISMATCH` (distinct EPSG codes only) | `CRS_MISMATCH_UNCERTAIN`, `TABLE_COLUMN_TYPE_MISMATCH`, `TABLE_COLUMN_CASE_MISMATCH`, `TABLE_COLUMN_PARTITION_KEY`, `TABLE_COLUMNS_INVALID`, `TABLE_ROW_COUNT_INVALID`, `PRIMARY_GEOMETRY_DIFFERS`, `PRIMARY_GEOMETRY_NOT_GEOMETRY`, `GEOPARQUET_METADATA_MISSING`, `GEOPARQUET_METADATA_INVALID`, `GEOPARQUET_CRS_UNDEFINED`, `GEOPARQUET_CRS_UNPARSEABLE`, `PARQUET_PARTITIONED_UNVERIFIED`, `GEOPARQUET_DEPENDENCY_MISSING` |
+| `[zarr]`, see [docs/zarr-design.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/docs/zarr-design.md) | `SHAPE_MISMATCH`, `DATA_TYPE_MISMATCH`, `NODATA_MISMATCH`, `SHAPE_INVALID` | `ZARR_DOUBLE_SCALING_RISK`, `ZARR_SCALE_CONFLICT`, `ZARR_SHAPE_UNVERIFIED`, `ZARR_DATA_TYPE_DECODED`, `ZARR_NODATA_NOT_IN_STORE`, `ZARR_FILL_VALUE_DIFFERS`, `ZARR_BANDS_AMBIGUOUS`, `ZARR_GROUP_UNRESOLVED`, `ZARR_BAND_UNRESOLVED`, `ZARR_SUPPORT_UNAVAILABLE` |
+| `[geoparquet]`, see [docs/geoparquet-design.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/docs/geoparquet-design.md) | `TABLE_COLUMN_MISSING`, `TABLE_ROW_COUNT_MISMATCH`, `PRIMARY_GEOMETRY_MISSING` (only when declared on the asset itself; WARN when inherited), `CRS_MISMATCH` (distinct EPSG codes only) | `CRS_MISMATCH_UNCERTAIN`, `TABLE_COLUMN_TYPE_MISMATCH`, `TABLE_COLUMN_CASE_MISMATCH`, `TABLE_COLUMN_PARTITION_KEY`, `TABLE_COLUMNS_INVALID`, `TABLE_ROW_COUNT_INVALID`, `PRIMARY_GEOMETRY_DIFFERS`, `PRIMARY_GEOMETRY_NOT_GEOMETRY`, `GEOPARQUET_METADATA_MISSING`, `GEOPARQUET_METADATA_INVALID`, `GEOPARQUET_CRS_UNDEFINED`, `GEOPARQUET_CRS_UNPARSEABLE`, `PARQUET_PARTITIONED_UNVERIFIED`, `GEOPARQUET_DEPENDENCY_MISSING` |
 
 Spatial comparisons use a default origin/bounds tolerance of `0.01` pixel (`--tolerance-px`).
 
@@ -219,12 +233,12 @@ GDAL_HTTP_BEARER="$TOKEN" stac-integrity item cdse-item.json --resolver alternat
 stac-integrity item item.json --resolver mypackage.auth:resolve     # your own (href, context) -> str
 ```
 
-Resolver failures are `ASSET_RESOLVE_FAILED` (WARN unless `--fail-unreadable`). Signatures and tokens are redacted from findings and error messages; `declared` always shows the original STAC href. Design and provider notes: [docs/auth-design.md](docs/auth-design.md).
+Resolver failures are `ASSET_RESOLVE_FAILED` (WARN unless `--fail-unreadable`). Signatures and tokens are redacted from findings and error messages; `declared` always shows the original STAC href. Design and provider notes: [docs/auth-design.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/docs/auth-design.md).
 
 ## Known limitations
 
-- **Zarr** (prototype, optional extra `pip install "stac-integrity-gate[zarr]"`): Zarr v2/v3 array metadata is compared with `proj:shape`, `data_type`, `nodata` and scale/offset (`ZARR_DOUBLE_SCALING_RISK` WARN when STAC repeats CF `scale_factor`/`add_offset`). CRS and datacube fields are not compared. Without the extra, Zarr assets are skipped with a `ZARR_SUPPORT_UNAVAILABLE` WARN. See [docs/zarr-design.md](docs/zarr-design.md).
-- **GeoParquet** (experimental, optional extra): `pip install "stac-integrity-gate[geoparquet]"` adds footer-only checks of single-file Parquet assets (`table:columns` names/types, `table:row_count`, `table:primary_geometry`, GeoParquet `geo` CRS). Glob/partitioned hrefs are skipped with a WARN; without `pyarrow`, Parquet assets are skipped with `GEOPARQUET_DEPENDENCY_MISSING` (WARN). See [docs/geoparquet-design.md](docs/geoparquet-design.md).
+- **Zarr** (experimental, optional extra `pip install "stac-integrity-gate[zarr]"`): Zarr v2/v3 array metadata is compared with `proj:shape`, `data_type`, `nodata` and scale/offset (`ZARR_DOUBLE_SCALING_RISK` WARN when STAC repeats CF `scale_factor`/`add_offset`). CRS and datacube fields are not compared. Without the extra, Zarr assets are skipped with a `ZARR_SUPPORT_UNAVAILABLE` WARN. See [docs/zarr-design.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/docs/zarr-design.md).
+- **GeoParquet** (experimental, optional extra): `pip install "stac-integrity-gate[geoparquet]"` adds footer-only checks of single-file Parquet assets (`table:columns` names/types, `table:row_count`, `table:primary_geometry`, GeoParquet `geo` CRS). Glob/partitioned hrefs are skipped with a WARN; without `pyarrow`, Parquet assets are skipped with `GEOPARQUET_DEPENDENCY_MISSING` (WARN). See [docs/geoparquet-design.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/docs/geoparquet-design.md).
 - **Authenticated catalogs**: only Planetary Computer signing is built in (optional extra). Other providers (CDSE, NASA Earthdata, USGS EROS, requester-pays S3) need GDAL configuration or your own resolver; without it their assets are reported as unreadable (WARN).
 - **Vertical CRS**: the vertical component of a compound CRS cannot be verified from a 2D raster header (`CRS_VERTICAL_UNVERIFIED`).
 - **Not every STAC extension** is covered, only the projection fields, bands/raster-band fields, asset-level `eo:bands` count, opt-in `file:size` and duplicate hrefs listed above. `file:checksum` is not verified.
@@ -235,7 +249,7 @@ Resolver failures are `ASSET_RESOLVE_FAILED` (WARN unless `--fail-unreadable`). 
 
 ## Validation evidence
 
-The tool was run against live public catalogs. Each finding was cross-checked with `rio info` and with an independent TIFF header parser that does not use GDAL. Summary and methodology: [docs/validation-evidence.md](docs/validation-evidence.md). Background on why the tool exists: [EVIDENCE.md](EVIDENCE.md).
+The tool was run against live public catalogs. Each finding was cross-checked with `rio info` and with an independent TIFF header parser that does not use GDAL. Summary and methodology: [docs/validation-evidence.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/docs/validation-evidence.md). Background on why the tool exists: [EVIDENCE.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/EVIDENCE.md).
 
 ## Development
 
@@ -245,8 +259,8 @@ python -m venv .venv
 .venv/bin/pytest -q
 ```
 
-The test suite is fully offline. Live benchmark tooling lives in [`benchmark/`](benchmark/README.md) and is not part of the installed package. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The test suite is fully offline. Live benchmark tooling lives in [`benchmark/`](https://github.com/a-hikata/stac-integrity-gate/blob/main/benchmark/README.md) and is not part of the installed package. See [CONTRIBUTING.md](https://github.com/a-hikata/stac-integrity-gate/blob/main/CONTRIBUTING.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/a-hikata/stac-integrity-gate/blob/main/LICENSE).

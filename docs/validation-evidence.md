@@ -2,7 +2,7 @@
 
 This page summarizes the live validation of `stac-integrity-gate` against public STAC catalogs, run on 2026-09-25 (Waves 1–2) and 2026-09-26 (Wave 3, blind audit).
 
-**This is a validation sample, not a prevalence study.** Items were chosen to test whether the tool finds real mismatches, and whether it avoids false positives on clean data. The counts below do not estimate how common these problems are across STAC catalogs in general. Nor do they show commercial demand for a hosted service.
+**This is a validation sample, not a prevalence study.** It also covers experimental checks (Zarr, GeoParquet). Items were chosen to test whether the tool finds real mismatches, and whether it avoids false positives on clean data. The counts below do not estimate how common these problems are across STAC catalogs in general. Nor do they show commercial demand for a hosted service.
 
 ## Method
 
@@ -67,10 +67,12 @@ No public issue was found for either finding after measurement. The search cover
 
 ### False positives found and fixed
 
-The blind audit also surfaced **two tool false positives**, both fixed in 0.3.0rc1 with offline regression fixtures (`tests/test_live_regressions.py`):
+The blind audit also surfaced **two tool false positives**, both fixed (released in 0.4.0) with offline regression fixtures (`tests/test_live_regressions.py`):
 
 1. **DLR terrabyte:** a remote catalog whose asset hrefs are HPC-internal `file://` paths gave `ASSET_UNREADABLE` **ERROR** (exit 1). This is an access failure and is now WARN.
 2. **DEA `nidem`:** STAC `nodata: -9999` with no nodata tag in the header gave `NODATA_MISMATCH` ERROR. Yet 99.4% of the pixels are `-9999`, so the STAC value is correct. This is now `NODATA_NOT_IN_HEADER` WARN.
+
+A third false positive (**FP-3**) was found later, by the GeoParquet sweep of the NRP catalog. Float32 raster nodata `-3.4e38` declared in STAC reads back from GDAL as `-3.3999999521e38`, which is the same float32 value. It was reported as `NODATA_MISMATCH` ERROR. Nodata is now compared at the band's own precision (fixed in 0.4.0, with regression tests).
 
 The tool never mis-read an asset value: every value it reported matched both independent readers.
 
@@ -85,6 +87,27 @@ The tool never mis-read an asset value: every value it reported matched both ind
 - Hub Ocean exposes no raster assets in its Items.
 - swisstopo: 58 assets were opened, but only `proj:epsg` is declared. 57 CRS comparisons, all matching.
 - Brazil Data Cube: 42 assets were opened, but it uses no `proj:*`/`raster:bands` fields, so there was nothing to compare.
+
+## Experimental extras — Zarr and GeoParquet (2026-09-26)
+
+These checks ship as **experimental** optional extras. The evidence below comes from small, targeted samples. It shows that each failure class exists today, not how common it is.
+
+### Zarr (`[zarr]`) — EOPF double-scaling risk
+
+- EOPF sample service STAC (`https://stac.core.eopf.eodc.eu`), collection `sentinel-2-l2a`. In a live Item, 14 assets declare STAC `raster:scale`/`raster:offset` that repeat the CF `scale_factor`/`add_offset` already stored on the Zarr arrays. A client that applies both scales the values twice.
+- The newer `sentinel-2-l2a-zarr3` collection no longer duplicates the scaling, and the tool reports nothing there.
+- The tool reports this as `ZARR_DOUBLE_SCALING_RISK` (**WARN**, never ERROR). Whether data is corrupted depends on the reader, which the gate cannot see.
+- Public reports:
+  - <https://github.com/EOPF-Sample-Service/eopf-stac/issues/82>
+  - <https://github.com/EOPF-Explorer/data-pipeline/issues/384>
+  - Related: <https://github.com/EOPF-Explorer/data-model/issues/195>
+
+### GeoParquet (`[geoparquet]`) — NRP row-count mismatch
+
+- NRP public-data catalog, `public-wyoming/blm-sma/stac-collection.json`, asset `blm-sma-parquet`. `table:row_count` declares **439,200** rows; the Parquet footer reports **865,059**. This is `TABLE_ROW_COUNT_MISMATCH` (ERROR: the footer was read and the value is exact).
+- It was the only Parquet ERROR in a sweep of 638 single-file Parquet assets in that catalog. Partitioned (glob) assets could not be verified and produced WARNs.
+- The sweep also found 61 declared-vs-Arrow type differences. These are WARN, because Arrow types have no one-to-one mapping to STAC types.
+- No public issue reporting this mismatch was found.
 
 ## Other targets
 
