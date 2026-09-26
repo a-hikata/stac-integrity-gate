@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from .audit import USER_AGENT
+from .redaction import redact
 
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
@@ -35,6 +36,9 @@ class OperationalFetchError(RuntimeError):
     """A STAC JSON document could not be fetched (network/HTTP/WAF)."""
 
     def __init__(self, url: str, reason: str, *, status: int | None = None, attempts: int = 1):
+        # The URL (and reasons that echo it) reach stderr and every report
+        # format: keep only the redacted form so signing material never leaks.
+        url, reason = redact(url), redact(reason)
         super().__init__(f"{reason} ({url}; attempts={attempts})")
         self.url = url
         self.reason = reason

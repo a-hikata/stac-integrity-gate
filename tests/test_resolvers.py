@@ -354,3 +354,22 @@ def test_findings_from_optional_modules_are_redacted_at_construction():
     f = Finding("WARN", "ASSET_UNREADABLE", "data", "href", f"Zarr asset could not be opened: 403 {signed}", signed, [signed])
     for text in (f.message, f.declared, f.actual[0], str(f.to_dict())):
         assert "SECRETSIG" not in text
+
+
+def test_incomplete_collection_audit_does_not_leak_signed_items_url(tmp_path):
+    # Integration guard (Track D x Track B): fetch failures are reported in
+    # stderr and in every report format; the failing URL must be redacted.
+    import subprocess
+    import sys
+
+    col = {"type": "Collection", "stac_version": "1.1.0", "id": "c", "description": "x", "license": "MIT",
+           "extent": {"spatial": {"bbox": [[0, 0, 1, 1]]}, "temporal": {"interval": [[None, None]]}},
+           "links": [{"rel": "items", "href": "http://127.0.0.1:9/items?token=SECRETTOKEN123&sig=SECRETSIG456"}]}
+    path = tmp_path / "c.json"
+    path.write_text(json.dumps(col))
+    for fmt in ("text", "json", "sarif", "junit"):
+        r = subprocess.run([sys.executable, "-m", "stac_integrity", "collection", str(path), "--format", fmt,
+                            "--retries", "0"], capture_output=True, text=True)
+        assert r.returncode == 2, fmt
+        assert "SECRETTOKEN123" not in r.stdout + r.stderr, fmt
+        assert "SECRETSIG456" not in r.stdout + r.stderr, fmt
