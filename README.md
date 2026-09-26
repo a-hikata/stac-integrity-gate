@@ -106,6 +106,8 @@ summary: items: 0 | assets-opened: 1 | cache-hits: 0 | errors: 1 | warnings: 0 |
 
 `--json` prints the full result, including each finding's `severity`, `code`, `asset`, `field`, `declared` and `actual` values.
 
+`--format text|json|sarif|junit` selects the report format (`--json` is an alias of `--format json`). `--output PATH` writes the report to a file and prints the text summary to stdout. JSON reports carry `schema_version`, a `status` (`pass`/`fail`, honouring `--strict`) and a `summary` of counts by severity and code; all earlier keys are unchanged. See [docs/output-formats.md](docs/output-formats.md).
+
 ## Large collections: sampling and politeness
 
 ```bash
@@ -150,6 +152,8 @@ jobs:
 ```
 
 Add `--fail-unreadable` if assets that cannot be opened should also fail the job. Add `--strict` to fail on any warning.
+
+For GitHub code scanning / PR annotations, write SARIF with `--format sarif --output stac-integrity.sarif` and upload it with `github/codeql-action/upload-sarif` (see [examples/github-actions.yml](examples/github-actions.yml)). For GitLab or Jenkins test reports, use `--format junit --output stac-integrity.xml`. Exit codes are the same for every format.
 
 ## Checks
 

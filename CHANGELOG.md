@@ -37,6 +37,12 @@ First public release candidate.
 - **Nodata missing from the header:** STAC `nodata` with no nodata tag in the raster header is now `NODATA_NOT_IN_HEADER` **WARN** instead of a `NODATA_MISMATCH` ERROR (DEA `nidem`: STAC `-9999`, no header tag, but 99.4% of pixels are `-9999`). A header nodata that differs from the declaration is still `NODATA_MISMATCH` ERROR.
 - Offline regression fixtures for every live-catalog finding (`tests/test_live_regressions.py`).
 
+### Reporting formats (CI)
+- `--format text|json|sarif|junit` and `--output PATH` on `item` and `collection`. `--json` is kept as an alias of `--format json`. Exit codes are unchanged for every format.
+- SARIF 2.1.0 output with a rule per finding code, stable `partialFingerprints`, and repo-relative artifact URIs, for GitHub code scanning.
+- JUnit XML output with one testcase per Item: ERROR → failure, WARN → pass (failure under `--strict`), nothing inspected → skipped.
+- JSON report: additive `schema_version` (`1.0`), `status`, `strict` and `summary` (counts by severity and code). JSON Schema in `docs/report.schema.json`. Documented in `docs/output-formats.md`.
+
 ### CLI and packaging
 - `stac-integrity --version`.
 - Single-source version (`stac_integrity.__version__`). Classifiers added. `test` extra.

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stac-integrity-gate/report.schema.json",
+  "title": "stac-integrity-gate JSON report (schema_version 1.x)",
+  "description": "Output of `stac-integrity item|collection --format json` (or --json). Additive changes bump the minor schema_version; consumers must ignore unknown keys.",
+  "oneOf": [
+    {
+      "allOf": [{ "$ref": "#/$defs/itemReport" }, { "$ref": "#/$defs/envelope" }],
+      "required": ["item_id"]
+    },
+    {
+      "allOf": [{ "$ref": "#/$defs/collectionReport" }, { "$ref": "#/$defs/envelope" }],
+      "required": ["collection_id"]
+    }
+  ],
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "required": ["schema_version", "status", "strict", "summary"],
+      "properties": {
+        "schema_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
+        "status": {
+          "enum": ["pass", "fail"],
+          "description": "Gate verdict: 'fail' iff exit code is 1 (any ERROR, or any WARN with --strict)."
+        },
+        "strict": { "type": "boolean" },
+        "summary": { "$ref": "#/$defs/summary" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["by_severity", "by_code"],
+      "properties": {
+        "by_severity": {
+          "type": "object",
+          "required": ["ERROR", "WARN"],
+          "properties": {
+            "ERROR": { "type": "integer", "minimum": 0 },
+            "WARN": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "by_code": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["severity", "code", "asset", "field", "message", "declared", "actual"],
+      "properties": {
+        "severity": { "enum": ["ERROR", "WARN"] },
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "asset": { "type": "string", "description": "Asset key; empty for item-level findings; comma-joined keys for DUPLICATE_DATA_HREF." },
+        "field": { "type": "string" },
+        "message": { "type": "string" },
+        "declared": { "description": "Value declared in STAC (any JSON type or null)." },
+        "actual": { "description": "Value read from the raster header (any JSON type or null)." }
+      }
+    },
+    "itemReport": {
+      "type": "object",
+      "required": ["source", "item_id", "checked_assets", "skipped_assets", "ok", "error_count", "warning_count", "findings"],
+      "properties": {
+        "source": { "type": "string" },
+        "item_id": { "type": "string" },
+        "checked_assets": { "type": "integer", "minimum": 0 },
+        "skipped_assets": { "type": "integer", "minimum": 0 },
+        "ok": { "type": "boolean", "description": "true iff there are no ERROR findings (independent of --strict)." },
+        "error_count": { "type": "integer", "minimum": 0 },
+        "warning_count": { "type": "integer", "minimum": 0 },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } }
+      }
+    },
+    "collectionReport": {
+      "type": "object",
+      "required": [
+        "source", "collection_id", "items_checked", "checked_assets", "skipped_assets", "ok",
+        "collection_assets_failed", "failing_items", "error_count", "warning_count", "finding_codes"
+      ],
+      "properties": {
+        "source": { "type": "string" },
+        "collection_id": { "type": "string" },
+        "items_checked": { "type": "integer", "minimum": 0 },
+        "checked_assets": { "type": "integer", "minimum": 0 },
+        "skipped_assets": { "type": "integer", "minimum": 0 },
+        "ok": { "type": "boolean" },
+        "collection_assets_failed": { "type": "boolean" },
+        "failing_items": { "type": "integer", "minimum": 0 },
+        "error_count": { "type": "integer", "minimum": 0 },
+        "warning_count": { "type": "integer", "minimum": 0 },
+        "finding_codes": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "collection_assets": { "$ref": "#/$defs/itemReport" },
+        "items": {
+          "type": "array",
+          "description": "Omitted with --summary-only.",
+          "items": { "$ref": "#/$defs/itemReport" }
+        }
+      }
+    }
+  }
+}
