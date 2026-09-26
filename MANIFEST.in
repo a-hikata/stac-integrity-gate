@@ -8,3 +8,4 @@ include scripts/public_benchmark.py
 prune benchmark
 prune research
 prune release
+prune docs/development
