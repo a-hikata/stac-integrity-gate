@@ -16,6 +16,7 @@ from rasterio.crs import CRS
 from . import __version__
 from .redaction import redact, redact_value
 from .resolvers import HrefContext
+from . import geoparquet_checks
 
 USER_AGENT = f"stac-integrity-gate/{__version__}"
 
@@ -771,11 +772,23 @@ def audit_item_dict(
                     zarr_checks.audit_zarr_asset(item, asset, key, href, source, unreadable_severity)
                 )
             continue
-        if not _is_raster_asset(asset, href):
+        is_parquet = not _is_raster_asset(asset, href) and geoparquet_checks.is_parquet_asset(asset, href)
+        if not _is_raster_asset(asset, href) and not is_parquet:
             skipped += 1
             continue
         if data_assets_only and not _is_data_asset(asset):
             skipped += 1
+            continue
+        if is_parquet:
+            # Optional GeoParquet/Table checks (pyarrow extra); see geoparquet_checks.
+            pq_checked, pq_findings = geoparquet_checks.audit_parquet_asset(
+                item, asset, key, href, source=source, unreadable_severity=unreadable_severity
+            )
+            findings.extend(pq_findings)
+            if pq_checked:
+                checked += 1
+            else:
+                skipped += 1
             continue
 
         checked += 1

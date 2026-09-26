@@ -35,6 +35,10 @@ planetary-computer = ["planetary-computer>=1"]
 # (Python >= 3.11); on Python 3.10 pip resolves zarr 2.18 (v2 stores only).
 # fsspec + aiohttp let zarr open stores over HTTPS.
 zarr = ["zarr>=2.16", "fsspec>=2023.6", "aiohttp"]
+# Optional footer-only GeoParquet/Table checks, imported lazily (never core).
+# >=14.0.1: fixes CVE-2023-47248 (unsafe deserialization when reading untrusted
+# Parquet/IPC files) - relevant because remote catalog assets are untrusted input.
+geoparquet = ["pyarrow>=14.0.1"]
 
 [project.scripts]
 stac-integrity = "stac_integrity.cli:main"
