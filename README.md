@@ -176,7 +176,15 @@ For GitHub code scanning / PR annotations, write SARIF with `--format sarif --ou
 | `EO_BAND_COUNT_MISMATCH` | WARN | asset-level `eo:bands` length ≠ raster band count. Checked only when the asset has neither `bands` nor `raster:bands`. Item-level `eo:bands` (all bands across assets) is never compared per asset, and trailing alpha bands (RGBA visual COGs) are ignored |
 | `FILE_SIZE_MISMATCH` | WARN (opt-in: `--check-file-size`) | asset `file:size` ≠ actual size (local `os.stat`, or the total in `Content-Range` from a 1-byte HTTP range GET). Skipped for `s3://`/`gs://`, encoded responses, unknown totals and access failures |
 | `ASSET_UNREADABLE` | WARN (access failure) / ERROR (missing local file in a local catalog) | the asset could not be opened. It is ERROR only when a local catalog references a local file that cannot be opened. Remote hrefs, and `file://` or local-path hrefs inside a *remote* catalog (e.g. HPC-internal paths), are access failures and give WARN. Use `--fail-unreadable` to make every unreadable asset an ERROR |
-| `NO_RASTER_ASSETS` | WARN | nothing was inspected: no selected data-role GeoTIFF/JPEG2000 assets |
+| `ASSET_RESOLVE_FAILED` | WARN (ERROR with `--fail-unreadable`) | the configured `--resolver` failed for this asset (e.g. signing unavailable). Never a semantic finding |
+| `NO_RASTER_ASSETS` | WARN | nothing was inspected: no selected data-role asset in a supported format (GeoTIFF/COG/JP2, or Zarr/Parquet with their extras) |
+
+**Optional formats** (only with the corresponding extra; full tables in the design docs):
+
+| extra | ERROR codes (asset read and contradicting STAC) | WARN codes |
+|---|---|---|
+| `[zarr]`, see [docs/zarr-design.md](docs/zarr-design.md) | `SHAPE_MISMATCH`, `DATA_TYPE_MISMATCH`, `NODATA_MISMATCH`, `SHAPE_INVALID` | `ZARR_DOUBLE_SCALING_RISK`, `ZARR_SCALE_CONFLICT`, `ZARR_SHAPE_UNVERIFIED`, `ZARR_DATA_TYPE_DECODED`, `ZARR_NODATA_NOT_IN_STORE`, `ZARR_FILL_VALUE_DIFFERS`, `ZARR_BANDS_AMBIGUOUS`, `ZARR_GROUP_UNRESOLVED`, `ZARR_BAND_UNRESOLVED`, `ZARR_SUPPORT_UNAVAILABLE` |
+| `[geoparquet]`, see [docs/geoparquet-design.md](docs/geoparquet-design.md) | `TABLE_COLUMN_MISSING`, `TABLE_ROW_COUNT_MISMATCH`, `PRIMARY_GEOMETRY_MISSING` (only when declared on the asset itself; WARN when inherited), `CRS_MISMATCH` (distinct EPSG codes only) | `CRS_MISMATCH_UNCERTAIN`, `TABLE_COLUMN_TYPE_MISMATCH`, `TABLE_COLUMN_CASE_MISMATCH`, `TABLE_COLUMN_PARTITION_KEY`, `TABLE_COLUMNS_INVALID`, `TABLE_ROW_COUNT_INVALID`, `PRIMARY_GEOMETRY_DIFFERS`, `PRIMARY_GEOMETRY_NOT_GEOMETRY`, `GEOPARQUET_METADATA_MISSING`, `GEOPARQUET_METADATA_INVALID`, `GEOPARQUET_CRS_UNDEFINED`, `GEOPARQUET_CRS_UNPARSEABLE`, `PARQUET_PARTITIONED_UNVERIFIED`, `GEOPARQUET_DEPENDENCY_MISSING` |
 
 Spatial comparisons use a default origin/bounds tolerance of `0.01` pixel (`--tolerance-px`).
 

@@ -143,3 +143,20 @@ def test_ghg_center_like_float_epsg(tmp_path):
     _tif(tmp_path / "a.tif", crs="EPSG:4326")
     item = _item({"href": "a.tif", "proj:epsg": 4326.0})
     assert audit_item(str(_write(tmp_path, item))).findings == []
+
+
+# --- FP-3 (NRP public-data plant-richness, found by the Track F sweep) -------
+
+@pytest.mark.parametrize("declared", [-3.4e38, "-3.4e+38", -3.3999999521443642e38])
+def test_float32_nodata_compared_at_band_precision(tmp_path, declared):
+    # GDAL stores float32 nodata, so STAC -3.4e38 reads back as
+    # -3.3999999521e38. The same float32 value must not be a NODATA_MISMATCH.
+    _tif(tmp_path / "a.tif", nodata=-3.4e38)
+    item = _item({"href": "a.tif", "raster:bands": [{"data_type": "float32", "nodata": declared}]})
+    assert audit_item(str(_write(tmp_path, item))).findings == []
+
+
+def test_float32_nodata_that_really_differs_is_still_error(tmp_path):
+    _tif(tmp_path / "a.tif", nodata=-3.4e38)
+    item = _item({"href": "a.tif", "raster:bands": [{"data_type": "float32", "nodata": -9999}]})
+    assert severities(audit_item(str(_write(tmp_path, item)))) == {("NODATA_MISMATCH", "ERROR")}

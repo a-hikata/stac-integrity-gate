@@ -6,7 +6,6 @@ import sys
 from . import __version__
 from .audit import audit_item
 from .collection import DEFAULT_SCAN_LIMIT, DEFAULT_WORKERS, SAMPLE_MODES, CollectionAuditResult, audit_collection
-from .collection import audit_collection
 from .redaction import redact
 from .resolvers import load_resolver
 from .report import FORMATS, gate_failed, render, render_text, write_report

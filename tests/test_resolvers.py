@@ -340,7 +340,7 @@ def test_cli_resolver_errors_exit_2(tmp_path, capsys, monkeypatch):
 
 
 def test_cli_operational_error_is_redacted(capsys):
-    assert main(["item", f"/nonexistent/item.json?sig=SuPeRsEcReTsIgNaTuRe"]) == 2
+    assert main(["item", "/nonexistent/item.json?sig=SuPeRsEcReTsIgNaTuRe"]) == 2
     assert_no_secrets(capsys.readouterr().err)
 
 

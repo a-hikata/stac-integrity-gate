@@ -49,7 +49,7 @@ RULES: dict[str, tuple[str, str]] = {
     "DUPLICATE_DATA_HREF": ("WARN", "Multiple data assets point to the same href."),
     "NODATA_MISMATCH": ("ERROR", "Declared nodata differs from the raster nodata value."),
     "NODATA_NOT_IN_HEADER": ("WARN", "Declared nodata is not recorded in the raster header."),
-    "NO_RASTER_ASSETS": ("WARN", "No selected data-role GeoTIFF/COG assets were available for inspection."),
+    "NO_RASTER_ASSETS": ("WARN", "No selected data-role asset in a supported format could be inspected."),
     "OFFSET_MISMATCH": ("WARN", "Declared offset differs from the raster header offset."),
     "RASTER_CRS_MISSING": ("ERROR", "A CRS is declared but the raster has no CRS."),
     "SCALE_MISMATCH": ("WARN", "Declared scale differs from the raster header scale."),

@@ -10,6 +10,7 @@ from types import MappingProxyType
 from typing import Any, Callable, Iterable
 from urllib.parse import urljoin, urlparse
 
+import numpy as np
 import rasterio
 from rasterio.crs import CRS
 
@@ -183,6 +184,24 @@ def _number_equal(a: Any, b: Any, abs_tol: float = 1e-9, rel_tol: float = 1e-9) 
     if math.isnan(af) and math.isnan(bf):
         return True
     return math.isclose(af, bf, abs_tol=abs_tol, rel_tol=rel_tol)
+
+
+def _nodata_equal(declared: Any, actual: Any, dtype: str) -> bool:
+    """Compare nodata at the band's own precision.
+
+    GDAL keeps float32 nodata as float32, so a STAC value such as -3.4e38
+    reads back as -3.3999999521e38: equal in the band, unequal as float64.
+    """
+    if _number_equal(declared, actual):
+        return True
+    if str(dtype).lower() != "float32":
+        return False
+    try:
+        d = float(_normalize_special_number(declared))
+        a = float(_normalize_special_number(actual))
+        return bool(np.float32(d) == np.float32(a))
+    except (TypeError, ValueError, OverflowError):
+        return False
 
 
 def _dtype_normalize(value: str) -> str:
@@ -422,7 +441,7 @@ def _check_bands(asset: dict[str, Any], key: str, src: Any) -> Iterable[Finding]
                     declared_nodata,
                     None,
                 )
-            elif not _number_equal(declared_nodata, actual_nodata):
+            elif not _nodata_equal(declared_nodata, actual_nodata, src.dtypes[idx]):
                 yield Finding(
                     "ERROR",
                     "NODATA_MISMATCH",
@@ -857,7 +876,7 @@ def audit_item_dict(
                 "NO_RASTER_ASSETS",
                 "",
                 "assets",
-                "No selected data-role GeoTIFF/COG assets were available for semantic inspection.",
+                "No selected data-role asset in a supported format (GeoTIFF/COG/JP2, or Zarr/Parquet with their extras) could be inspected.",
                 None,
                 None,
             )
