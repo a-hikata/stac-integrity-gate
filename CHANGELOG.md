@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Unreleased (post-RC integration candidate, 0.4.0.dev0)
 
 ### Checks
 - `EO_BAND_COUNT_MISMATCH` (WARN): asset-level `eo:bands` length vs raster band count, only when the asset has no `bands`/`raster:bands`. Item-level `eo:bands` is never compared per asset; trailing alpha bands are ignored.

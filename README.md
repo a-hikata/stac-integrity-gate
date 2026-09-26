@@ -12,7 +12,7 @@ FAIL known-bad-band-count | checked: 1 | skipped: 0 | errors: 1 | warnings: 0
   actual=6
 ```
 
-> Status: **0.3.0rc1, release candidate.** Not yet published to PyPI.
+> Status: **0.4.0.dev0 — post-RC integration candidate** (the first public release candidate is 0.3.0rc1). Not yet published to PyPI.
 
 ## What problem this solves
 
@@ -62,14 +62,14 @@ python -m pip install .
 From a built wheel:
 
 ```bash
-python -m pip install dist/stac_integrity_gate-0.3.0rc1-py3-none-any.whl
+python -m pip install dist/stac_integrity_gate-0.4.0.dev0-py3-none-any.whl
 ```
 
 Check the install:
 
 ```bash
 stac-integrity --version
-# stac-integrity 0.3.0rc1
+# stac-integrity 0.4.0.dev0
 ```
 
 ## Quick start
