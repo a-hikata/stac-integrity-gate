@@ -30,6 +30,7 @@ classifiers = [
 
 [project.optional-dependencies]
 test = ["pytest", "numpy"]
+planetary-computer = ["planetary-computer>=1"]
 
 [project.scripts]
 stac-integrity = "stac_integrity.cli:main"

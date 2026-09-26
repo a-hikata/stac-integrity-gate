@@ -5,6 +5,7 @@ import math
 import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Callable, Iterable
 from urllib.parse import urljoin, urlparse
 
@@ -12,6 +13,8 @@ import rasterio
 from rasterio.crs import CRS
 
 from . import __version__
+from .redaction import redact, redact_value
+from .resolvers import HrefContext
 
 USER_AGENT = f"stac-integrity-gate/{__version__}"
 
@@ -27,7 +30,12 @@ class Finding:
     actual: Any = None
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        out = asdict(self)
+        # Findings end up in CI logs: never echo signing material.
+        out["message"] = redact(self.message)
+        out["declared"] = redact_value(self.declared)
+        out["actual"] = redact_value(self.actual)
+        return out
 
 
 @dataclass
@@ -52,7 +60,7 @@ class AuditResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "source": self.source,
+            "source": redact(self.source),
             "item_id": self.item_id,
             "checked_assets": self.checked_assets,
             "skipped_assets": self.skipped_assets,
@@ -531,6 +539,7 @@ def audit_item_dict(
     data_assets_only: bool = True,
     unreadable_severity: str = "WARN",
     header_reader: Callable[[str], Any] | None = None,
+    resolver: Callable[[str, HrefContext], str] | None = None,
 ) -> AuditResult:
     """Audit one STAC Item dict.
 
@@ -571,7 +580,7 @@ def audit_item_dict(
                     "href",
                     "Multiple data assets point to the same href; verify that they are intentional aliases.",
                     keys,
-                    href,
+                    redact(href),
                 )
             )
 
@@ -595,21 +604,43 @@ def audit_item_dict(
             continue
 
         checked += 1
+        severity = unreadable_severity.upper()
+        if severity not in {"WARN", "ERROR"}:
+            severity = "WARN"
+        open_href = href
+        if resolver is not None:
+            # Transport/auth hook: the resolved (possibly signed) href is only
+            # opened, never stored; findings keep the declared STAC href.
+            try:
+                context = HrefContext(str(key), item_id, source, MappingProxyType(raw_asset))
+                open_href = resolver(href, context)
+                if not isinstance(open_href, str) or not open_href:
+                    raise TypeError(f"resolver returned {type(open_href).__name__}, expected a non-empty str")
+            except Exception as exc:
+                findings.append(
+                    Finding(
+                        severity,
+                        "ASSET_RESOLVE_FAILED",
+                        key,
+                        "href",
+                        redact(f"Asset href resolver failed: {type(exc).__name__}: {exc}"),
+                        redact_value(raw_asset.get("href")),
+                        None,
+                    )
+                )
+                continue
         try:
-            src = (header_reader or read_raster_header)(href)
+            src = (header_reader or read_raster_header)(open_href)
             findings.extend(_check_crs(item, asset, key, src))
             findings.extend(_check_shape(item, asset, key, src))
             findings.extend(_check_transform(item, asset, key, src, tolerance_px))
             findings.extend(_check_bbox(item, asset, key, src, tolerance_px))
             findings.extend(_check_bands(asset, key, src))
         except Exception as exc:
-            severity = unreadable_severity.upper()
-            if severity not in {"WARN", "ERROR"}:
-                severity = "WARN"
             # A missing local file is a publishing error only when the catalog
             # itself is local. A remote catalog's file:// hrefs point at the
             # publisher's filesystem, so failing to open them is access-only.
-            if not _is_remote(href) and not _is_remote(source):
+            if not _is_remote(href) and not _is_remote(open_href) and not _is_remote(source):
                 severity = "ERROR"
             findings.append(
                 Finding(
@@ -617,8 +648,8 @@ def audit_item_dict(
                     "ASSET_UNREADABLE",
                     key,
                     "href",
-                    f"Raster asset could not be opened: {type(exc).__name__}: {exc}",
-                    raw_asset.get("href"),
+                    redact(f"Raster asset could not be opened: {type(exc).__name__}: {exc}"),
+                    redact_value(raw_asset.get("href")),
                     None,
                 )
             )
@@ -652,6 +683,7 @@ def audit_item(
     tolerance_px: float = 0.01,
     data_assets_only: bool = True,
     unreadable_severity: str = "WARN",
+    resolver: Callable[[str, HrefContext], str] | None = None,
 ) -> AuditResult:
     item = load_json(source)
     return audit_item_dict(
@@ -661,4 +693,5 @@ def audit_item(
         tolerance_px=tolerance_px,
         data_assets_only=data_assets_only,
         unreadable_severity=unreadable_severity,
+        resolver=resolver,
     )

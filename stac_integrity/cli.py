@@ -7,6 +7,9 @@ import sys
 from . import __version__
 from .audit import audit_item
 from .collection import DEFAULT_SCAN_LIMIT, DEFAULT_WORKERS, SAMPLE_MODES, audit_collection
+from .collection import audit_collection
+from .redaction import redact
+from .resolvers import load_resolver
 
 
 def _common(p: argparse.ArgumentParser) -> None:
@@ -20,6 +23,12 @@ def _common(p: argparse.ArgumentParser) -> None:
         type=float,
         default=0.01,
         help="Spatial tolerance in pixels for bbox/origin comparison (default: 0.01)",
+    )
+    p.add_argument(
+        "--resolver",
+        metavar="SPEC",
+        help="Href resolver for signed/authenticated assets: 'planetary-computer', "
+        "'alternate-<name>' (e.g. alternate-https) or an import path 'module:function'",
     )
 
 
@@ -90,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
     data_only = not args.all_raster_assets
 
     try:
+        resolver = load_resolver(args.resolver) if args.resolver else None
         if args.command == "item":
             result = audit_item(
                 args.source,
@@ -97,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
                 tolerance_px=args.tolerance_px,
                 data_assets_only=data_only,
                 unreadable_severity=unreadable,
+                resolver=resolver,
             )
             if args.as_json:
                 print(json.dumps(result.to_dict(), indent=2, default=str))
@@ -129,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_rps=args.max_rps,
                 delay=args.delay,
                 retries=args.retries,
+                resolver=resolver,
             )
             if args.as_json:
                 print(json.dumps(result.to_dict(include_items=not args.summary_only), indent=2, default=str))
@@ -149,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
             if not failed and not result.complete:
                 return 2
     except Exception as exc:
-        print(f"stac-integrity: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print(redact(f"stac-integrity: {type(exc).__name__}: {exc}"), file=sys.stderr)
         return 2
 
     return 1 if failed else 0

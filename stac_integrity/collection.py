@@ -7,11 +7,13 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 from .audit import USER_AGENT, AuditResult, audit_item_dict, load_json, read_raster_header
 from .netpolicy import HeaderCache, JsonClient, OperationalFetchError, RateLimiter
+from .redaction import redact
+from .resolvers import HrefContext
 
 DEFAULT_WORKERS = 4
 DEFAULT_SCAN_LIMIT = 1000
@@ -117,7 +119,7 @@ class CollectionAuditResult:
 
     def to_dict(self, include_items: bool = True) -> dict[str, Any]:
         out = {
-            "source": self.source,
+            "source": redact(self.source),
             "collection_id": self.collection_id,
             "items_checked": self.items_checked,
             "checked_assets": self.checked_assets,
@@ -298,6 +300,7 @@ def audit_collection(
     max_concurrent_opens: int | None = None,
     client: JsonClient | None = None,
     header_reader: Any = None,
+    resolver: Callable[[str, HrefContext], str] | None = None,
 ) -> CollectionAuditResult:
     """Audit a STAC Collection's Collection-level assets and a sample of Items.
 
@@ -350,6 +353,7 @@ def audit_collection(
             data_assets_only=data_assets_only,
             unreadable_severity=unreadable_severity,
             header_reader=cache,
+            resolver=resolver,
         )
 
     operational_errors: list[dict[str, Any]] = []
@@ -381,6 +385,7 @@ def audit_collection(
             data_assets_only=data_assets_only,
             unreadable_severity=unreadable_severity,
             header_reader=cache,
+            resolver=resolver,
         )
 
     raw: list[AuditResult | None]
