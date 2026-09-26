@@ -1,6 +1,6 @@
 # Validation evidence
 
-This page summarizes the live validation of `stac-integrity-gate` against public STAC catalogs, run on 2026-09-25.
+This page summarizes the live validation of `stac-integrity-gate` against public STAC catalogs, run on 2026-09-25 (Waves 1–2) and 2026-09-26 (Wave 3, blind audit).
 
 **This is a validation sample, not a prevalence study.** Items were chosen to test whether the tool finds real mismatches, and whether it avoids false positives on clean data. The counts below do not estimate how common these problems are across STAC catalogs in general. Nor do they show commercial demand for a hosted service.
 
@@ -43,6 +43,48 @@ This page summarizes the live validation of `stac-integrity-gate` against public
 - The tool could not open the assets: the S3 buckets return 403 and VEDA declares OIDC auth. All results are therefore **INCONCLUSIVE** (auth required). The tool reported them as `ASSET_UNREADABLE` warnings, not mismatches.
 - Supplementary check (single method, not a tool run): the publisher's public titiler `/cog/info` endpoint was compared with the STAC declarations. There were **no mismatches in 135 assets**.
 - This data exposed the float `proj:epsg` form (`4326.0`), which the tool now handles.
+
+## Wave 3 — blind audit of new publishers (2026-09-26)
+
+**Method.** Collections were listed and then shuffled with a fixed seed (`20260926`). The first eligible collections were taken, and the first 3 Items of each. No issue trackers or known-bug lists were consulted before sampling and measurement. Publishers already used in Waves 1–2 (Element84, Planetary Computer, NASA) were excluded. This is a **blind validation sample, not a prevalence study.**
+
+### Digital Earth Australia — `nidem` (blind discovery)
+
+- **CRS mismatch on 12/12 Items.** STAC declares `proj:code: EPSG:4326`. The actual COG is **EPSG:3577** (GDA94 / Australian Albers).
+- The declared `proj:transform` (25 m, Albers metres) and `proj:shape` do match the asset. Only the CRS is wrong, so the declaration contradicts itself.
+- Every Item is **VALID** in PySTAC 1.15.2 and `stac_valid` 4.6.1. stac-check passes it.
+- odc-stac 0.5.3 loads the Item **without any warning** and builds a nonsensical geobox: WGS 84 with a "25-degree" resolution.
+- Confirmed with `rio info` (separate rasterio installation) and with the non-GDAL TIFF parser.
+
+### Digital Earth Australia — `multi_scale_topographic_position` (blind discovery)
+
+- **Shape mismatch on 3 Items / 9 assets.** STAC declares `proj:shape` **1199×1199**. The actual rasters are **1200×1200**.
+- `proj:transform` matches the asset, so the declared grid is one pixel short.
+- **VALID** in PySTAC and `stac_valid`.
+- Confirmed with `rio info` and the non-GDAL TIFF parser.
+
+No public issue was found for either finding after measurement. The search covered GitHub issues only.
+
+### False positives found and fixed
+
+The blind audit also surfaced **two tool false positives**, both fixed in 0.3.0rc1 with offline regression fixtures (`tests/test_live_regressions.py`):
+
+1. **DLR terrabyte:** a remote catalog whose asset hrefs are HPC-internal `file://` paths gave `ASSET_UNREADABLE` **ERROR** (exit 1). This is an access failure and is now WARN.
+2. **DEA `nidem`:** STAC `nodata: -9999` with no nodata tag in the header gave `NODATA_MISMATCH` ERROR. Yet 99.4% of the pixels are `-9999`, so the STAC value is correct. This is now `NODATA_NOT_IN_HEADER` WARN.
+
+The tool never mis-read an asset value: every value it reported matched both independent readers.
+
+### Inconclusive or not comparable
+
+- Inconclusive, access only:
+  - DLR terrabyte (`file://` HPC paths)
+  - Copernicus Data Space (S3 credentials required)
+  - USGS LandsatLook (login redirect)
+  - Digital Earth Africa (server error)
+  - the remaining DEA collections (the API applied bot protection during sampling)
+- Hub Ocean exposes no raster assets in its Items.
+- swisstopo: 58 assets were opened, but only `proj:epsg` is declared. 57 CRS comparisons, all matching.
+- Brazil Data Cube: 42 assets were opened, but it uses no `proj:*`/`raster:bands` fields, so there was nothing to compare.
 
 ## Other targets
 

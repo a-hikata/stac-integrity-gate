@@ -20,9 +20,10 @@ Downstream loaders such as odc-stac and stackstac build their pixel grid from ST
 
 - A public Sentinel-2 catalog declares a 20 m grid for an AOT asset that is actually 60 m.
 - A public DEM catalog declares a pixel size of `1e-05°` for tiles whose real pixel size is `9.26e-05°`.
+- A national data-cube catalog declares `EPSG:4326` for rasters that are actually in `EPSG:3577` (Albers metres).
 - A published COG has 6 bands while its STAC metadata declares 1.
 
-The first two passed structural STAC validation (PySTAC and `stac_valid`). The third was missed by the publisher's own structural validator, which never opened the COG.
+The first three passed structural STAC validation (PySTAC and `stac_valid`). The fourth was missed by the publisher's own structural validator, which never opened the COG.
 
 ## What existing STAC validators do
 
@@ -42,7 +43,7 @@ None of these compare the **declared values** in STAC with the **actual values**
 | `proj:bbox` | raster bounds |
 | number of `bands` (STAC 1.1) or `raster:bands` (raster extension v1) | raster band count |
 | per-band `data_type` | raster dtype |
-| per-band `nodata` | raster nodata |
+| per-band `nodata` | raster nodata (ERROR only if the header has a different nodata; WARN if it has none) |
 | per-band `scale` / `offset` | raster scale / offset (warning only) |
 | data assets sharing one href | (warning only) |
 
@@ -146,19 +147,20 @@ Add `--fail-unreadable` if assets that cannot be opened should also fail the job
 | `BBOX_MISMATCH` / `BBOX_INVALID` | ERROR | `proj:bbox` differs from raster bounds beyond tolerance, or malformed |
 | `BAND_COUNT_MISMATCH` | ERROR | number of declared bands ≠ raster band count |
 | `DATA_TYPE_MISMATCH` | ERROR | declared band `data_type` ≠ raster dtype |
-| `NODATA_MISMATCH` | ERROR | declared band `nodata` ≠ raster nodata (NaN-aware) |
+| `NODATA_MISMATCH` | ERROR | the header has a nodata value and it differs from the declared `nodata` (NaN-aware), or STAC declares `nodata: null` while the header defines one |
+| `NODATA_NOT_IN_HEADER` | WARN | STAC declares `nodata` but the header has no nodata tag. This does not prove the declaration wrong, because the fill value may still be used in the pixels |
 | `SCALE_MISMATCH` / `OFFSET_MISMATCH` | WARN | declared scale/offset ≠ raster header scale/offset |
 | `DUPLICATE_DATA_HREF` | WARN | several data assets point to the same href |
-| `ASSET_UNREADABLE` | WARN (remote) / ERROR (local file) | the asset could not be opened. Use `--fail-unreadable` to make remote failures ERROR |
+| `ASSET_UNREADABLE` | WARN (access failure) / ERROR (missing local file in a local catalog) | the asset could not be opened. It is ERROR only when a local catalog references a local file that cannot be opened. Remote hrefs, and `file://` or local-path hrefs inside a *remote* catalog (e.g. HPC-internal paths), are access failures and give WARN. Use `--fail-unreadable` to make every unreadable asset an ERROR |
 | `NO_RASTER_ASSETS` | WARN | nothing was inspected: no selected data-role GeoTIFF/JPEG2000 assets |
 
 Spatial comparisons use a default origin/bounds tolerance of `0.01` pixel (`--tolerance-px`).
 
 ## Severity model
 
-- **ERROR** means the declaration and the raster header demonstrably disagree. Only ERRORs make the default run fail.
-- **WARN** is used for anything that cannot be proven wrong from the header alone: scale/offset (STAC may describe semantic scaling not stored in the file), vertical CRS components, unparseable declarations, duplicate hrefs, and remote assets that cannot be opened.
-- **Access failures are never semantic failures.** An asset that returns 403, times out or needs credentials is reported as `ASSET_UNREADABLE` (WARN). Note that a run where nothing could be opened exits `0` with a `NO_RASTER_ASSETS` or `ASSET_UNREADABLE` warning. Use `--fail-unreadable` or `--strict` if that should fail CI.
+- **ERROR** means the asset was actually read, and its header demonstrably contradicts the STAC declaration. Only ERRORs make the default run fail. (The one non-header ERROR is a local catalog pointing at a local file that does not open: in your own repository, that is a publishing error.)
+- **WARN** is used whenever the evidence is insufficient to prove a mismatch: unreadable or access-restricted assets, a nodata value the header does not carry, vertical CRS components, scale/offset (STAC may describe semantic scaling not stored in the file), unparseable declarations and duplicate hrefs. Insufficient evidence is never an ERROR.
+- **Access failures are never semantic failures.** An asset that returns 403, times out, needs credentials, or lives on the publisher's private filesystem (a `file://` href in a remote catalog) is reported as `ASSET_UNREADABLE` (WARN). Note that a run where nothing could be opened exits `0` with a `NO_RASTER_ASSETS` or `ASSET_UNREADABLE` warning. Use `--fail-unreadable` or `--strict` if that should fail CI.
 - By default only assets with role `data` (or no roles) are audited. Use `--all-raster-assets` to include visual/overview assets.
 - `Collection.item_assets` is **not** inherited into Items. STAC requires those fields to be repeated on the Item asset.
 
@@ -172,6 +174,7 @@ Spatial comparisons use a default origin/bounds tolerance of `0.01` pixel (`--to
 | GeoTIFF / COG assets | supported and live-validated |
 | JPEG2000 assets | opened when your GDAL build supports it; not live-validated |
 | Local paths and `http(s)://` hrefs, including pre-signed URLs such as Azure SAS | supported and live-validated |
+| `file://` hrefs | opened locally. In a remote catalog they usually point at the publisher's own filesystem; an open failure there gives `ASSET_UNREADABLE` WARN |
 | `s3://` hrefs | passed to GDAL; live-validated for public buckets with `AWS_NO_SIGN_REQUEST=YES` |
 | Other object-store URIs (`gs://`, `az://`, …) | passed to GDAL; not live-validated. Access failures are treated as remote (WARN) |
 
@@ -186,6 +189,8 @@ Credentials and signing are not handled by the tool. Configure them the way GDAL
 - **Not every STAC extension** is covered, only the projection fields, bands/raster-band fields and duplicate hrefs listed above.
 - **Not compared**: Item `geometry`, `bbox` and `gsd` are deliberately not treated as exact raster invariants. Pixel values and scientific correctness are not checked.
 - A Collection audit covers the **first N Items** returned (`--limit`), not a random sample.
+- Catalogs whose assets live on a private filesystem (e.g. HPC-internal `file://` paths), or behind authentication or bot protection, cannot be audited from outside. They produce warnings only.
+- Only standard `proj:*`, `bands` and `raster:bands` fields are compared. A catalog that describes its rasters with custom fields has nothing to compare, and passes with no findings.
 
 ## Validation evidence
 

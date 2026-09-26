@@ -392,7 +392,19 @@ def _check_bands(asset: dict[str, Any], key: str, src: Any) -> Iterable[Finding]
             actual_nodata = src.nodatavals[idx]
             if declared_nodata is None and actual_nodata is None:
                 pass
-            elif actual_nodata is None or not _number_equal(declared_nodata, actual_nodata):
+            elif actual_nodata is None:
+                # The header carries no nodata tag. That does not prove the STAC
+                # value wrong (the fill value may still be used in the pixels).
+                yield Finding(
+                    "WARN",
+                    "NODATA_NOT_IN_HEADER",
+                    key,
+                    f"bands[{idx}].nodata",
+                    "STAC declares nodata but the raster header has no nodata value; the declaration cannot be verified.",
+                    declared_nodata,
+                    None,
+                )
+            elif not _number_equal(declared_nodata, actual_nodata):
                 yield Finding(
                     "ERROR",
                     "NODATA_MISMATCH",
@@ -541,7 +553,10 @@ def audit_item_dict(
             severity = unreadable_severity.upper()
             if severity not in {"WARN", "ERROR"}:
                 severity = "WARN"
-            if not _is_remote(href):
+            # A missing local file is a publishing error only when the catalog
+            # itself is local. A remote catalog's file:// hrefs point at the
+            # publisher's filesystem, so failing to open them is access-only.
+            if not _is_remote(href) and not _is_remote(source):
                 severity = "ERROR"
             findings.append(
                 Finding(
