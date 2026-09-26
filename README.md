@@ -178,13 +178,22 @@ Spatial comparisons use a default origin/bounds tolerance of `0.01` pixel (`--to
 | `s3://` hrefs | passed to GDAL; live-validated for public buckets with `AWS_NO_SIGN_REQUEST=YES` |
 | Other object-store URIs (`gs://`, `az://`, …) | passed to GDAL; not live-validated. Access failures are treated as remote (WARN) |
 
-Credentials and signing are not handled by the tool. Configure them the way GDAL expects (environment variables, or pre-signed hrefs).
+Credentials are never handled by the tool. Configure them the way GDAL expects (environment variables, or pre-signed hrefs), or pass an href resolver that returns the URL to open:
+
+```bash
+pip install "stac-integrity-gate[planetary-computer]"
+stac-integrity item pc-item.json --resolver planetary-computer      # SAS-sign Planetary Computer blobs
+GDAL_HTTP_BEARER="$TOKEN" stac-integrity item cdse-item.json --resolver alternate-https
+stac-integrity item item.json --resolver mypackage.auth:resolve     # your own (href, context) -> str
+```
+
+Resolver failures are `ASSET_RESOLVE_FAILED` (WARN unless `--fail-unreadable`). Signatures and tokens are redacted from findings and error messages; `declared` always shows the original STAC href. Design and provider notes: [docs/auth-design.md](docs/auth-design.md).
 
 ## Known limitations
 
 - **Zarr**: no semantic validation of Zarr stores.
 - **GeoParquet**: no semantic validation of GeoParquet assets.
-- **Authenticated catalogs**: no built-in authentication or URL signing for arbitrary providers. Assets needing credentials are reported as unreadable (WARN).
+- **Authenticated catalogs**: only Planetary Computer signing is built in (optional extra). Other providers (CDSE, NASA Earthdata, USGS EROS, requester-pays S3) need GDAL configuration or your own resolver; without it their assets are reported as unreadable (WARN).
 - **Vertical CRS**: the vertical component of a compound CRS cannot be verified from a 2D raster header (`CRS_VERTICAL_UNVERIFIED`).
 - **Not every STAC extension** is covered, only the projection fields, bands/raster-band fields and duplicate hrefs listed above.
 - **Not compared**: Item `geometry`, `bbox` and `gsd` are deliberately not treated as exact raster invariants. Pixel values and scientific correctness are not checked.

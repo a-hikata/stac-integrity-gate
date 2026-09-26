@@ -6,10 +6,12 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urljoin, urlparse
 
 from .audit import USER_AGENT, AuditResult, audit_item_dict, load_json
+from .redaction import redact
+from .resolvers import HrefContext
 
 
 def _is_url(value: str) -> bool:
@@ -76,7 +78,7 @@ class CollectionAuditResult:
 
     def to_dict(self, include_items: bool = True) -> dict[str, Any]:
         out = {
-            "source": self.source,
+            "source": redact(self.source),
             "collection_id": self.collection_id,
             "items_checked": self.items_checked,
             "checked_assets": self.checked_assets,
@@ -145,6 +147,7 @@ def audit_collection(
     tolerance_px: float = 0.01,
     data_assets_only: bool = True,
     unreadable_severity: str = "WARN",
+    resolver: Callable[[str, HrefContext], str] | None = None,
 ) -> CollectionAuditResult:
     collection = load_json(source)
     if collection.get("type") != "Collection":
@@ -169,6 +172,7 @@ def audit_collection(
             tolerance_px=tolerance_px,
             data_assets_only=data_assets_only,
             unreadable_severity=unreadable_severity,
+            resolver=resolver,
         )
 
     loaded = _load_collection_items(source, collection, max(1, limit))
@@ -182,6 +186,7 @@ def audit_collection(
             tolerance_px=tolerance_px,
             data_assets_only=data_assets_only,
             unreadable_severity=unreadable_severity,
+            resolver=resolver,
         )
 
     if workers <= 1:
