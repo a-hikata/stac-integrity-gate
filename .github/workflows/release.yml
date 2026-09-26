@@ -1,0 +1,91 @@
+# Publishes to PyPI when a version tag (e.g. v0.3.0rc1) is pushed.
+#
+# Safety model (see docs/releasing.md):
+# - No stored credentials: PyPI Trusted Publishing (OIDC). `id-token: write`
+#   is granted only to the publish job.
+# - The publish job runs in the GitHub environment `pypi`. Configure that
+#   environment with required reviewers so every upload needs manual approval,
+#   and restrict it to tags matching `v*`.
+# - Nothing is uploaded until the PyPI project has a Trusted Publisher entry
+#   for this repository, this workflow file (`release.yml`) and environment
+#   `pypi`. Without it the upload fails closed.
+# - The tag must equal `v` + stac_integrity.__version__, and the full test
+#   suite must pass, before anything is built for upload.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify tag matches package version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(python -c "import ast,pathlib; m=ast.parse(pathlib.Path('stac_integrity/__init__.py').read_text()); print(next(n.value.value for n in m.body if isinstance(n, ast.Assign) and n.targets[0].id == '__version__'))")
+          echo "tag=$TAG version=$version"
+          test "$TAG" = "v$version"
+      - run: python -m pip install --upgrade pip build twine
+      - run: python -m build
+      - run: python -m twine check --strict dist/*
+      - name: Smoke-test the wheel in a clean venv
+        run: |
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/python -m pip install dist/*.whl
+          /tmp/wheel-venv/bin/stac-integrity --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/stac-integrity-gate/
+    permissions:
+      id-token: write # OIDC token for Trusted Publishing; no API token is stored.
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      # PEP 740 attestations are generated and uploaded by default.
+      - uses: pypa/gh-action-pypi-publish@release/v1

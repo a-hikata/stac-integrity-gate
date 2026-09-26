@@ -1,19 +1,70 @@
 name: CI
+
 on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e . pytest numpy
+      - run: python -m pip install -e ".[test]"
       - run: pytest -q
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Dev-only tool, not a package dependency. Configuration: ruff.toml.
+      - run: python -m pip install "ruff>=0.15,<0.16"
+      - run: ruff check .
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build twine
+      - name: Build wheel and sdist
+        run: python -m build
+      - name: Check distribution metadata
+        run: python -m twine check --strict dist/*
+      - name: Install the wheel into a clean venv and smoke-test it
+        run: |
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/python -m pip install dist/*.whl
+          /tmp/wheel-venv/bin/stac-integrity --version
+          cd /tmp && /tmp/wheel-venv/bin/python -c "import stac_integrity; print(stac_integrity.__version__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
