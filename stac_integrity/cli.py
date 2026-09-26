@@ -6,7 +6,7 @@ import sys
 
 from . import __version__
 from .audit import audit_item
-from .collection import audit_collection
+from .collection import DEFAULT_SCAN_LIMIT, DEFAULT_WORKERS, SAMPLE_MODES, audit_collection
 
 
 def _common(p: argparse.ArgumentParser) -> None:
@@ -21,6 +21,18 @@ def _common(p: argparse.ArgumentParser) -> None:
         default=0.01,
         help="Spatial tolerance in pixels for bbox/origin comparison (default: 0.01)",
     )
+
+
+def _collection_scale(p: argparse.ArgumentParser) -> None:
+    g = p.add_argument_group("sampling and politeness")
+    g.add_argument("--sample", choices=SAMPLE_MODES, default="first", help="Item selection: first N in publisher order (default) or a uniform random sample from the scan pool")
+    g.add_argument("--seed", type=int, default=None, help="Seed for --sample random (auto-generated and reported when omitted)")
+    g.add_argument("--scan-limit", type=int, default=DEFAULT_SCAN_LIMIT, help=f"--sample random: candidate pool = first N Items in publisher order (default: {DEFAULT_SCAN_LIMIT})")
+    g.add_argument("--page-size", type=int, default=None, help="STAC API items page size (sets ?limit= on the first items request; default: server default for first, 100 for random)")
+    rate = g.add_mutually_exclusive_group()
+    rate.add_argument("--max-rps", type=float, default=None, help="Max STAC JSON requests + asset opens per second (default: unlimited)")
+    rate.add_argument("--delay", type=float, default=None, help="Minimum seconds between STAC JSON requests + asset opens")
+    g.add_argument("--retries", type=int, default=2, help="Retries for transient STAC JSON failures: timeouts, 429, 5xx (default: 2)")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -38,10 +50,27 @@ def _parser() -> argparse.ArgumentParser:
     collection = sub.add_parser("collection", help="Audit Items in a STAC Collection")
     collection.add_argument("source", help="Local path or HTTP(S) URL to a STAC Collection JSON")
     collection.add_argument("--limit", type=int, default=100, help="Maximum Items to audit (default: 100)")
-    collection.add_argument("--workers", type=int, default=8, help="Parallel asset workers (default: 8)")
+    collection.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help=f"Parallel Item workers; also bounds concurrent asset opens (default: {DEFAULT_WORKERS})")
     collection.add_argument("--summary-only", action="store_true", help="Omit per-item JSON results")
+    _collection_scale(collection)
     _common(collection)
     return p
+
+
+def _print_collection_summary(result) -> None:
+    sm = result.sampling
+    sampling = f"sampling: {sm.get('mode')}"
+    if sm.get("mode") == "random":
+        exhausted = "whole collection" if sm.get("pool_exhausted") else "first-N pool only"
+        sampling += f" seed={sm.get('seed')} pool={sm.get('pool_size')} ({exhausted}, scan-limit={sm.get('scan_limit')})"
+    sampling += f" | limit: {sm.get('limit')} | selected: {sm.get('selected')}"
+    print(sampling)
+    s = result.summary()
+    print(
+        f"summary: items: {s['items_checked']} | assets-opened: {s['assets_opened']} | cache-hits: {s['asset_cache_hits']} | "
+        f"errors: {s['errors']} | warnings: {s['warnings']} | unreadable: {s['unreadable']} | "
+        f"http: {s['http_requests']} req / {s['http_retries']} retries | complete: {'yes' if s['complete'] else 'no'}"
+    )
 
 
 def _legacy_to_item(argv: list[str]) -> list[str]:
@@ -93,6 +122,13 @@ def main(argv: list[str] | None = None) -> int:
                 tolerance_px=args.tolerance_px,
                 data_assets_only=data_only,
                 unreadable_severity=unreadable,
+                sample=args.sample,
+                seed=args.seed,
+                scan_limit=args.scan_limit,
+                page_size=args.page_size,
+                max_rps=args.max_rps,
+                delay=args.delay,
+                retries=args.retries,
             )
             if args.as_json:
                 print(json.dumps(result.to_dict(include_items=not args.summary_only), indent=2, default=str))
@@ -106,7 +142,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 if result.codes:
                     print("findings: " + ", ".join(f"{k}={v}" for k, v in result.codes.most_common()))
+                _print_collection_summary(result)
+            for err in result.operational_errors:
+                print(f"stac-integrity: incomplete audit: {err['stage']}: {err['reason']} ({err['url']})", file=sys.stderr)
             failed = bool(result.error_count or (args.strict and result.warning_count))
+            if not failed and not result.complete:
+                return 2
     except Exception as exc:
         print(f"stac-integrity: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2

@@ -12,6 +12,9 @@ First public release candidate.
 ### Collections
 - `stac-integrity collection`: audits STAC 1.1 Collection-level assets and member Items, using static `rel=item` links or STAC API `rel=items` paging.
 - `Collection.item_assets` is not inherited into Items.
+- Collection scale: `--sample first|random`, `--seed`, `--scan-limit`, `--page-size`, `--max-rps` / `--delay`, `--retries`. Bounded retries for transient STAC JSON failures (timeouts, 429 with `Retry-After`, 5xx); HTTP 202 empty-body WAF challenges are not retried. Per-run header cache so each asset href is opened once. Text and JSON output add `sampling` / `summary` (additive).
+- **Default `--workers` lowered from 8 to 4** (also the `audit_collection` API default) to be gentler on public APIs.
+- Items page / Item fetch failures no longer abort the collection audit: results are marked incomplete (`summary.complete: false`) and the CLI exits `2` unless an ERROR was found.
 
 ### Remote assets
 - Object-store URIs (`s3://`, `gs://`, …) are treated as remote. When they cannot be opened they produce `ASSET_UNREADABLE` WARN, not ERROR. Previously an unreadable `s3://` asset was escalated as if it were a missing local file and exited `1`.

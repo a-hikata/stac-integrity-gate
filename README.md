@@ -100,9 +100,26 @@ A Collection whose STAC 1.1 Collection-level asset declares one band while the G
 $ stac-integrity collection demo_collection_bad/collection.json
 FAIL known-bad-collection-band-count | collection-assets: FAIL | items: 0 | failing-items: 0 | assets: 1 | errors: 1 | warnings: 0
 findings: BAND_COUNT_MISMATCH=1
+sampling: first | limit: 100 | selected: 0
+summary: items: 0 | assets-opened: 1 | cache-hits: 0 | errors: 1 | warnings: 0 | unreadable: 0 | http: 0 req / 0 retries | complete: yes
 ```
 
 `--json` prints the full result, including each finding's `severity`, `code`, `asset`, `field`, `declared` and `actual` values.
+
+## Large collections: sampling and politeness
+
+```bash
+stac-integrity collection https://earth-search.aws.element84.com/v1/collections/sentinel-2-c1-l2a \
+  --limit 5 --sample random --seed 1 --asset red --max-rps 2
+```
+
+- `--sample first` (default) audits the first `--limit` Items in the publisher's order. `--sample random` draws a uniform reservoir sample of `--limit` Items from a **candidate pool of the first `--scan-limit` Items (default 1000)** in the publisher's order. The sample is uniform over the whole Collection only when the pool is exhausted (`sampling.pool_exhausted: true`); otherwise it is biased toward whatever the server lists first (often the newest Items). The seed is always reported; if `--seed` is omitted one is generated. The same seed reproduces the same sample only while the publisher's Item order and the pool are unchanged (live APIs that ingest new Items shift the pool). Random mode requests pages of 100 (`--page-size`) unless set.
+- Stratified sampling is not offered: there is no generic, honest stratum definition across Collections (time, grid tile, platform are Collection-specific), and STAC API paging order is not guaranteed.
+- `--workers` defaults to **4** (was 8) and also bounds concurrent raster header opens. `--max-rps N` / `--delay S` rate-limit STAC JSON requests and asset opens with a shared token bucket (one open may issue several HTTP range reads).
+- STAC JSON fetches retry transient failures only (timeouts, connection resets, HTTP 429 honouring `Retry-After` up to 60 s, HTTP 5xx) with bounded exponential backoff (`--retries`, default 2). 4xx is not retried. HTTP 202 with an empty body (a WAF/bot challenge) is reported immediately and not retried. Remote raster opens use GDAL's own `GDAL_HTTP_MAX_RETRY=2`, `GDAL_HTTP_RETRY_DELAY=1`.
+- Each resolved asset href is opened once per run; the header snapshot (or open failure) is reused for other Items referencing it.
+- If an items page or Item document cannot be fetched, the audit continues with what it has, is marked `complete: no` / `summary.complete: false`, and exits `2` unless a semantic ERROR was found. Fetch failures are never reported as semantic findings.
+- `--json` adds `sampling` and `summary` blocks; existing keys are unchanged.
 
 ## CI usage
 
@@ -112,7 +129,7 @@ Exit codes:
 |---:|---|
 | `0` | no ERROR findings. Warnings are allowed unless `--strict` is set |
 | `1` | at least one ERROR finding, or any WARN finding with `--strict` |
-| `2` | operational/input failure: the STAC JSON could not be loaded or parsed, or the source is not a Collection |
+| `2` | operational/input failure: the STAC JSON could not be loaded or parsed, or the source is not a Collection; for `collection`, also an incomplete audit (items page / Item fetch failed) with no ERROR |
 
 GitHub Actions example. The step fails when a semantic ERROR is found:
 
