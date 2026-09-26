@@ -183,7 +183,7 @@ Credentials and signing are not handled by the tool. Configure them the way GDAL
 ## Known limitations
 
 - **Zarr**: no semantic validation of Zarr stores.
-- **GeoParquet**: no semantic validation of GeoParquet assets.
+- **GeoParquet** (experimental, optional extra): `pip install "stac-integrity-gate[geoparquet]"` adds footer-only checks of single-file Parquet assets (`table:columns` names/types, `table:row_count`, `table:primary_geometry`, GeoParquet `geo` CRS). Glob/partitioned hrefs are skipped with a WARN; without `pyarrow`, Parquet assets are skipped with `GEOPARQUET_DEPENDENCY_MISSING` (WARN). See [docs/geoparquet-design.md](docs/geoparquet-design.md).
 - **Authenticated catalogs**: no built-in authentication or URL signing for arbitrary providers. Assets needing credentials are reported as unreadable (WARN).
 - **Vertical CRS**: the vertical component of a compound CRS cannot be verified from a 2D raster header (`CRS_VERTICAL_UNVERIFIED`).
 - **Not every STAC extension** is covered, only the projection fields, bands/raster-band fields and duplicate hrefs listed above.

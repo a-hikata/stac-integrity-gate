@@ -30,6 +30,10 @@ classifiers = [
 
 [project.optional-dependencies]
 test = ["pytest", "numpy"]
+# Optional footer-only GeoParquet/Table checks, imported lazily (never core).
+# >=14.0.1: fixes CVE-2023-47248 (unsafe deserialization when reading untrusted
+# Parquet/IPC files) - relevant because remote catalog assets are untrusted input.
+geoparquet = ["pyarrow>=14.0.1"]
 
 [project.scripts]
 stac-integrity = "stac_integrity.cli:main"
