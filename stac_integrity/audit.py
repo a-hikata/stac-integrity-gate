@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -445,6 +446,164 @@ def _check_bands(asset: dict[str, Any], key: str, src: Any) -> Iterable[Finding]
                 )
 
 
+def _check_eo_bands(asset: dict[str, Any], key: str, src: Any) -> Iterable[Finding]:
+    """Compare *asset-level* ``eo:bands`` length with the raster band count.
+
+    Used only when the asset has neither ``bands`` nor ``raster:bands`` (those
+    are covered by BAND_COUNT_MISMATCH). Item-level ``eo:bands`` describes all
+    bands across all assets and is never compared per asset. WARN only:
+    ``eo:bands`` lists *spectral* bands, and producers differ on whether extra
+    non-spectral raster bands are listed.
+    """
+    if _bands(asset) is not None:
+        return
+    eo_bands = asset.get("eo:bands")
+    if not isinstance(eo_bands, list) or not eo_bands:
+        return
+    declared = len(eo_bands)
+    actual = src.count
+    if declared == actual:
+        return
+    if actual > declared:
+        # Trailing alpha bands (e.g. RGBA visual COGs) are not spectral bands.
+        try:
+            extra = list(src.colorinterp)[declared:]
+            if extra and all(ci.name == "alpha" for ci in extra):
+                return
+        except Exception:
+            pass
+    yield Finding(
+        "WARN",
+        "EO_BAND_COUNT_MISMATCH",
+        key,
+        "eo:bands",
+        "Asset-level eo:bands length differs from the raster band count (no bands/raster:bands to compare).",
+        declared,
+        actual,
+    )
+
+
+def _declared_size(asset: dict[str, Any]) -> int | None:
+    value = asset.get("file:size")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def _remote_size(href: str, timeout: float = 30) -> int | None:
+    """Object size from a 1-byte Range GET (Content-Range total), or None.
+
+    A Range GET is used rather than HEAD because pre-signed GET URLs usually
+    reject HEAD. Returns None whenever the size is not unambiguous (encoded
+    responses, no usable headers, any error).
+    """
+    req = urllib.request.Request(
+        href,
+        headers={"User-Agent": USER_AGENT, "Range": "bytes=0-0", "Accept-Encoding": "identity"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            headers = response.headers
+            encoding = (headers.get("Content-Encoding") or "identity").strip().lower()
+            if encoding != "identity":
+                return None
+            content_range = headers.get("Content-Range")
+            if content_range:
+                total = content_range.rsplit("/", 1)[-1].strip()
+                return int(total) if total.isdigit() else None
+            status = getattr(response, "status", None)
+            length = headers.get("Content-Length")
+            if status == 200 and length and length.strip().isdigit():
+                # Server ignored Range: Content-Length is the full object size.
+                return int(length.strip())
+    except Exception:
+        return None
+    return None
+
+
+def _check_file_size(asset: dict[str, Any], key: str, href: str) -> Iterable[Finding]:
+    """Opt-in: compare asset ``file:size`` with the actual object size.
+
+    Local paths use os.stat; http(s) uses a 1-byte Range GET. Other schemes
+    (s3://, gs://, ...) and any unobtainable size are skipped silently.
+    WARN only: byte size is not a semantic raster declaration.
+    """
+    declared = _declared_size(asset)
+    if declared is None:
+        return
+    parsed = urlparse(href)
+    actual: int | None = None
+    if _is_url(href):
+        actual = _remote_size(href)
+    elif not _is_remote(href):
+        path = parsed.path if parsed.scheme == "file" else href
+        try:
+            actual = os.stat(path).st_size
+        except OSError:
+            actual = None
+    if actual is None or actual == declared:
+        return
+    yield Finding(
+        "WARN",
+        "FILE_SIZE_MISMATCH",
+        key,
+        "file:size",
+        "Declared file:size differs from the actual object size.",
+        declared,
+        actual,
+    )
+
+
+def _band_identity(asset: dict[str, Any]) -> dict[str, tuple]:
+    """Declared band semantics of an asset, keyed by identifier kind."""
+    bands = _bands(asset)
+    if bands is None and isinstance(asset.get("eo:bands"), list):
+        bands = asset["eo:bands"]
+    ident: dict[str, tuple] = {}
+    if bands:
+        for field, out in (("name", "name"), ("eo:common_name", "common_name"), ("common_name", "common_name")):
+            values = [b.get(field) if isinstance(b, dict) else None for b in bands]
+            if any(v is not None for v in values) and out not in ident:
+                ident[out] = tuple(str(v).lower() if v is not None else None for v in values)
+    pols = asset.get("sar:polarizations")
+    if isinstance(pols, list) and pols:
+        ident["sar:polarizations"] = tuple(sorted(str(p).upper() for p in pols))
+    return ident
+
+
+def _different_band_semantics(assets: list[dict[str, Any]]) -> bool:
+    """True only if two assets declare the same identifier kind with different values."""
+    idents = [_band_identity(a) for a in assets]
+    for i in range(len(idents)):
+        for j in range(i + 1, len(idents)):
+            for kind in idents[i].keys() & idents[j].keys():
+                if idents[i][kind] != idents[j][kind]:
+                    return True
+    return False
+
+
+def _duplicate_href_finding(assets: dict[str, Any], keys: list[str], href: str) -> Finding:
+    if _different_band_semantics([assets[k] for k in keys]):
+        return Finding(
+            "WARN",
+            "DUPLICATE_HREF_DIFFERENT_BANDS",
+            ",".join(sorted(keys)),
+            "href",
+            "Data assets that declare different bands/polarizations point to the same href; at most one declaration can describe that file.",
+            keys,
+            href,
+        )
+    return Finding(
+        "WARN",
+        "DUPLICATE_DATA_HREF",
+        ",".join(sorted(keys)),
+        "href",
+        "Multiple data assets point to the same href; verify that they are intentional aliases.",
+        keys,
+        href,
+    )
+
+
 def _is_raster_asset(asset: dict[str, Any], href: str) -> bool:
     media_type = str(asset.get("type", "")).lower()
     path = urlparse(href).path.lower()
@@ -477,6 +636,7 @@ def audit_item_dict(
     tolerance_px: float = 0.01,
     data_assets_only: bool = True,
     unreadable_severity: str = "WARN",
+    check_file_size: bool = False,
 ) -> AuditResult:
     item_id = str(item.get("id", "<unknown>"))
     findings: list[Finding] = []
@@ -503,17 +663,7 @@ def audit_item_dict(
         href_groups.setdefault(normalized_href, []).append(str(key))
     for href, keys in href_groups.items():
         if len(keys) > 1:
-            findings.append(
-                Finding(
-                    "WARN",
-                    "DUPLICATE_DATA_HREF",
-                    ",".join(sorted(keys)),
-                    "href",
-                    "Multiple data assets point to the same href; verify that they are intentional aliases.",
-                    keys,
-                    href,
-                )
-            )
+            findings.append(_duplicate_href_finding(assets, keys, href))
 
     for key, raw_asset in assets.items():
         if key not in selected or not isinstance(raw_asset, dict):
@@ -535,6 +685,8 @@ def audit_item_dict(
             continue
 
         checked += 1
+        if check_file_size:
+            findings.extend(_check_file_size(asset, key, href))
         try:
             env_kwargs = {}
             if _is_remote(href):
@@ -549,6 +701,7 @@ def audit_item_dict(
                     findings.extend(_check_transform(item, asset, key, src, tolerance_px))
                     findings.extend(_check_bbox(item, asset, key, src, tolerance_px))
                     findings.extend(_check_bands(asset, key, src))
+                    findings.extend(_check_eo_bands(asset, key, src))
         except Exception as exc:
             severity = unreadable_severity.upper()
             if severity not in {"WARN", "ERROR"}:
@@ -599,6 +752,7 @@ def audit_item(
     tolerance_px: float = 0.01,
     data_assets_only: bool = True,
     unreadable_severity: str = "WARN",
+    check_file_size: bool = False,
 ) -> AuditResult:
     item = load_json(source)
     return audit_item_dict(
@@ -608,4 +762,5 @@ def audit_item(
         tolerance_px=tolerance_px,
         data_assets_only=data_assets_only,
         unreadable_severity=unreadable_severity,
+        check_file_size=check_file_size,
     )

@@ -145,6 +145,7 @@ def audit_collection(
     tolerance_px: float = 0.01,
     data_assets_only: bool = True,
     unreadable_severity: str = "WARN",
+    check_file_size: bool = False,
 ) -> CollectionAuditResult:
     collection = load_json(source)
     if collection.get("type") != "Collection":
@@ -169,6 +170,7 @@ def audit_collection(
             tolerance_px=tolerance_px,
             data_assets_only=data_assets_only,
             unreadable_severity=unreadable_severity,
+            check_file_size=check_file_size,
         )
 
     loaded = _load_collection_items(source, collection, max(1, limit))
@@ -182,6 +184,7 @@ def audit_collection(
             tolerance_px=tolerance_px,
             data_assets_only=data_assets_only,
             unreadable_severity=unreadable_severity,
+            check_file_size=check_file_size,
         )
 
     if workers <= 1:

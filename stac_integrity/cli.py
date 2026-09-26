@@ -16,6 +16,11 @@ def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--fail-unreadable", action="store_true", help="Treat remote assets that cannot be opened as errors")
     p.add_argument("--all-raster-assets", action="store_true", help="Include visual/overview/thumbnail raster assets; default is data-role assets only")
     p.add_argument(
+        "--check-file-size",
+        action="store_true",
+        help="Compare asset file:size with the actual object size (local stat or a 1-byte HTTP range request); WARN only",
+    )
+    p.add_argument(
         "--tolerance-px",
         type=float,
         default=0.01,
@@ -68,6 +73,7 @@ def main(argv: list[str] | None = None) -> int:
                 tolerance_px=args.tolerance_px,
                 data_assets_only=data_only,
                 unreadable_severity=unreadable,
+                check_file_size=args.check_file_size,
             )
             if args.as_json:
                 print(json.dumps(result.to_dict(), indent=2, default=str))
@@ -93,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
                 tolerance_px=args.tolerance_px,
                 data_assets_only=data_only,
                 unreadable_severity=unreadable,
+                check_file_size=args.check_file_size,
             )
             if args.as_json:
                 print(json.dumps(result.to_dict(include_items=not args.summary_only), indent=2, default=str))
