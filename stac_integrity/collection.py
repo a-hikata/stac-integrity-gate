@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from .audit import AuditResult, audit_item_dict, load_json
+from .audit import USER_AGENT, AuditResult, audit_item_dict, load_json
 
 
 def _is_url(value: str) -> bool:
@@ -25,7 +25,7 @@ def _resolve(base: str, href: str) -> str:
 
 
 def _fetch_json(url: str) -> dict[str, Any]:
-    req = urllib.request.Request(url, headers={"User-Agent": "stac-integrity-gate/0.2"})
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=30) as response:
         return json.load(response)
 

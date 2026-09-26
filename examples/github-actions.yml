@@ -9,5 +9,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # Until the package is on PyPI, install from a wheel or a source checkout instead.
       - run: pip install stac-integrity-gate
       - run: stac-integrity path/to/item.json --strict

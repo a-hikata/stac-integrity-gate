@@ -1,4 +1,4 @@
-__version__ = "0.2.0"
+__version__ = "0.3.0rc1"
 
 from .audit import AuditResult, Finding, audit_item
 from .collection import CollectionAuditResult, audit_collection

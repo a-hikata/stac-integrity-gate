@@ -1,0 +1,10 @@
+# Files needed to run the offline test suite from an sdist, plus user docs.
+include CHANGELOG.md CONTRIBUTING.md EVIDENCE.md
+recursive-include docs *.md
+recursive-include demo_bad *.json *.tif
+recursive-include demo_collection_bad *.json *.tif
+include scripts/public_benchmark.py
+# Never ship live-benchmark tooling, raw results or research notes.
+prune benchmark
+prune research
+prune release

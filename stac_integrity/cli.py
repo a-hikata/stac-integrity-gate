@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 
+from . import __version__
 from .audit import audit_item
 from .collection import audit_collection
 
@@ -27,6 +28,7 @@ def _parser() -> argparse.ArgumentParser:
         prog="stac-integrity",
         description="Compare STAC raster declarations with actual raster asset headers.",
     )
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = p.add_subparsers(dest="command")
 
     item = sub.add_parser("item", help="Audit one STAC Item")
@@ -43,7 +45,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _legacy_to_item(argv: list[str]) -> list[str]:
-    if argv and argv[0] not in {"item", "collection", "-h", "--help"}:
+    if argv and argv[0] not in {"item", "collection", "-h", "--help", "--version"}:
         return ["item", *argv]
     return argv
 

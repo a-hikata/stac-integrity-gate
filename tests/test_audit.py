@@ -175,3 +175,94 @@ def test_duplicate_data_href_warns(tmp_path):
     result = audit_item(str(item_path))
     assert "DUPLICATE_DATA_HREF" in codes(result)
     assert result.ok
+
+
+def _unreadable_remote_item(href):
+    return {
+        "type": "Feature",
+        "id": "remote",
+        "properties": {},
+        "assets": {"data": {"href": href, "type": "image/tiff; application=geotiff", "roles": ["data"]}},
+    }
+
+
+def _raise_io(*args, **kwargs):
+    raise rasterio.errors.RasterioIOError("AWS_SECRET_ACCESS_KEY and AWS_NO_SIGN_REQUEST configuration options not defined")
+
+
+def test_unreadable_s3_asset_is_access_warning_not_semantic_error(monkeypatch):
+    # Live regression: Earth Search cop-dem-glo-30 hrefs are s3:// URIs. An
+    # access failure there must stay WARN (exit 0 by default), exactly like
+    # an unreadable https:// asset, instead of being escalated as if local.
+    from stac_integrity.audit import audit_item_dict
+
+    monkeypatch.setattr(rasterio, "open", _raise_io)
+    for href in ("s3://copernicus-dem-30m/tile.tif", "gs://bucket/tile.tif"):
+        result = audit_item_dict(_unreadable_remote_item(href), source="https://example.org/item.json")
+        assert codes(result) == ["ASSET_UNREADABLE"], href
+        assert result.findings[0].severity == "WARN", href
+        assert result.ok, href
+
+
+def test_unreadable_s3_asset_honors_fail_unreadable(monkeypatch):
+    from stac_integrity.audit import audit_item_dict
+
+    monkeypatch.setattr(rasterio, "open", _raise_io)
+    result = audit_item_dict(
+        _unreadable_remote_item("s3://copernicus-dem-30m/tile.tif"),
+        source="https://example.org/item.json",
+        unreadable_severity="ERROR",
+    )
+    assert result.findings[0].severity == "ERROR"
+
+
+def test_unreadable_local_asset_is_still_error(tmp_path):
+    item = _unreadable_remote_item("missing.tif")
+    item_path = tmp_path / "item.json"
+    write_item(item_path, item)
+    result = audit_item(str(item_path))
+    assert result.findings[0].code == "ASSET_UNREADABLE"
+    assert result.findings[0].severity == "ERROR"
+
+
+def test_compound_crs_with_matching_horizontal_is_warning_not_error(tmp_path):
+    # Live regression (Planetary Computer 3dep-seamless): STAC declares
+    # EPSG:5498 (NAD83 + NAVD88 height) while the 2D COG header is EPSG:4269
+    # (NAD83). The horizontal CRS agrees; only the vertical part is unverifiable
+    # from a 2D GeoTIFF, so this must not hard-fail the grid.
+    item_path, item = make_fixture(tmp_path)
+    tif = tmp_path / "asset.tif"
+    with rasterio.open(tif, "r+") as dst:
+        dst.crs = "EPSG:4269"
+    item["assets"]["data"]["proj:code"] = "EPSG:5498"
+    write_item(item_path, item)
+    result = audit_item(str(item_path))
+    assert "CRS_MISMATCH" not in codes(result)
+    assert "CRS_VERTICAL_UNVERIFIED" in codes(result)
+    assert result.ok
+
+
+def test_compound_crs_with_different_horizontal_is_still_error(tmp_path):
+    item_path, item = make_fixture(tmp_path)  # raster is EPSG:32632
+    item["assets"]["data"]["proj:code"] = "EPSG:5498"  # NAD83 + NAVD88
+    write_item(item_path, item)
+    result = audit_item(str(item_path))
+    assert "CRS_MISMATCH" in codes(result)
+    assert not result.ok
+
+
+def test_integral_float_proj_epsg_is_checked(tmp_path):
+    # Live regression (NASA GHG Center STAC): proj:epsg is published as the
+    # JSON number 4326.0. It must be compared as EPSG:4326, not reported as
+    # CRS_UNPARSEABLE (which also silently skipped the CRS comparison).
+    item_path, item = make_fixture(tmp_path)  # raster is EPSG:32632
+    del item["assets"]["data"]["proj:code"]
+    item["assets"]["data"]["proj:epsg"] = 32632.0
+    write_item(item_path, item)
+    result = audit_item(str(item_path))
+    assert result.findings == []
+
+    item["assets"]["data"]["proj:epsg"] = 4326.0
+    write_item(item_path, item)
+    result = audit_item(str(item_path))
+    assert codes(result) == ["CRS_MISMATCH"]

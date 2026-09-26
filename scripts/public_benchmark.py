@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -140,7 +141,19 @@ def markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def configure_anonymous_access(env=os.environ) -> None:
+    """Public benchmark: read public object-store buckets without signing.
+
+    Earth Search publishes s3:// hrefs for open buckets (e.g. copernicus-dem-30m).
+    Without this, GDAL refuses to try an unsigned request and every such asset
+    is INCONCLUSIVE. An explicit user setting (including NO) is respected;
+    buckets that genuinely need credentials stay INCONCLUSIVE.
+    """
+    env.setdefault("AWS_NO_SIGN_REQUEST", "YES")
+
+
 def main() -> int:
+    configure_anonymous_access()
     p = argparse.ArgumentParser()
     p.add_argument("config", nargs="?", default="benchmark/targets.json")
     p.add_argument("--out-dir", default="benchmark/results")

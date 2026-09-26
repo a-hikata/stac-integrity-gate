@@ -11,6 +11,10 @@ from urllib.parse import urljoin, urlparse
 import rasterio
 from rasterio.crs import CRS
 
+from . import __version__
+
+USER_AGENT = f"stac-integrity-gate/{__version__}"
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -63,9 +67,17 @@ def _is_url(value: str) -> bool:
     return urlparse(value).scheme in {"http", "https"}
 
 
+def _is_remote(value: str) -> bool:
+    # Object-store URIs (s3://, gs://, az://, ...) are remote: failing to open
+    # them is an access problem, not proof that a local file is missing.
+    # Windows drive letters parse as a 1-char scheme.
+    scheme = urlparse(value).scheme.lower()
+    return len(scheme) > 1 and scheme != "file"
+
+
 def load_json(source: str) -> dict[str, Any]:
     if _is_url(source):
-        req = urllib.request.Request(source, headers={"User-Agent": "stac-integrity-gate/0.2"})
+        req = urllib.request.Request(source, headers={"User-Agent": USER_AGENT})
         with urllib.request.urlopen(req, timeout=30) as response:
             return json.load(response)
     return json.loads(Path(source).read_text())
@@ -92,6 +104,27 @@ def _parse_crs(declared: Any) -> CRS | None:
         return CRS.from_user_input(declared)
     except Exception:
         return None
+
+
+def _horizontal_crs(crs: CRS) -> CRS | None:
+    """Return the horizontal part of a compound CRS (WKT1 COMPD_CS), else None."""
+    wkt = crs.to_wkt()
+    if not wkt.startswith("COMPD_CS["):
+        return None
+    # COMPD_CS["name",<horizontal CRS>,<vertical CRS>]: take the first sub-CRS.
+    start = wkt.find(",", len("COMPD_CS[")) + 1
+    depth = 0
+    for i in range(start, len(wkt)):
+        if wkt[i] == "[":
+            depth += 1
+        elif wkt[i] == "]":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return CRS.from_wkt(wkt[start:i + 1])
+                except Exception:
+                    return None
+    return None
 
 
 def _normalize_transform(value: Any) -> list[float] | None:
@@ -171,6 +204,8 @@ def _check_crs(item: dict[str, Any], asset: dict[str, Any], key: str, src: Any) 
     for field, declared in candidates:
         if declared is None:
             continue
+        if field == "proj:epsg" and isinstance(declared, float) and declared.is_integer():
+            declared = int(declared)  # JSON 4326.0 is the integer code 4326
         crs_declared = f"EPSG:{declared}" if field == "proj:epsg" else declared
         parsed = _parse_crs(crs_declared)
         if parsed is None:
@@ -192,6 +227,16 @@ def _check_crs(item: dict[str, Any], asset: dict[str, Any], key: str, src: Any) 
                 "STAC declares a CRS but the raster header has none.",
                 declared,
                 None,
+            )
+        elif parsed != actual and _horizontal_crs(parsed) == actual:
+            yield Finding(
+                "WARN",
+                "CRS_VERTICAL_UNVERIFIED",
+                key,
+                field,
+                "Declared compound CRS has the raster's horizontal CRS; its vertical component cannot be verified from the raster header.",
+                declared,
+                actual.to_string(),
             )
         elif parsed != actual:
             yield Finding(
@@ -480,7 +525,7 @@ def audit_item_dict(
         checked += 1
         try:
             env_kwargs = {}
-            if _is_url(href):
+            if _is_remote(href):
                 env_kwargs = {
                     "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
                     "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.tiff,.jp2",
@@ -496,7 +541,7 @@ def audit_item_dict(
             severity = unreadable_severity.upper()
             if severity not in {"WARN", "ERROR"}:
                 severity = "WARN"
-            if not _is_url(href):
+            if not _is_remote(href):
                 severity = "ERROR"
             findings.append(
                 Finding(
