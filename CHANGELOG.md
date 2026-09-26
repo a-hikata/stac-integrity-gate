@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Checks
+- `EO_BAND_COUNT_MISMATCH` (WARN): asset-level `eo:bands` length vs raster band count, only when the asset has no `bands`/`raster:bands`. Item-level `eo:bands` is never compared per asset; trailing alpha bands are ignored.
+- `DUPLICATE_HREF_DIFFERENT_BANDS` (WARN): a duplicate-href group whose assets declare different band names, common names or `sar:polarizations`. It replaces the generic `DUPLICATE_DATA_HREF` for that group.
+- `FILE_SIZE_MISMATCH` (WARN, opt-in via `--check-file-size` / `check_file_size=True`): asset `file:size` vs local file size or HTTP `Content-Range` total. Nothing is reported when the size cannot be determined unambiguously.
+- Not implemented (on hold): `file:checksum` verification (needs a full download, and checks byte integrity rather than semantics) and `statistics` vs GDAL `STATISTICS_*` tags (approximate and optional).
+
 ## 0.3.0rc1 — release candidate (unreleased)
 
 First public release candidate.

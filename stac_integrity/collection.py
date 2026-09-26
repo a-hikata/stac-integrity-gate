@@ -301,6 +301,7 @@ def audit_collection(
     client: JsonClient | None = None,
     header_reader: Any = None,
     resolver: Callable[[str, HrefContext], str] | None = None,
+    check_file_size: bool = False,
 ) -> CollectionAuditResult:
     """Audit a STAC Collection's Collection-level assets and a sample of Items.
 
@@ -354,6 +355,7 @@ def audit_collection(
             unreadable_severity=unreadable_severity,
             header_reader=cache,
             resolver=resolver,
+            check_file_size=check_file_size,
         )
 
     operational_errors: list[dict[str, Any]] = []
@@ -386,6 +388,7 @@ def audit_collection(
             unreadable_severity=unreadable_severity,
             header_reader=cache,
             resolver=resolver,
+            check_file_size=check_file_size,
         )
 
     raw: list[AuditResult | None]

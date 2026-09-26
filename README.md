@@ -168,6 +168,9 @@ Add `--fail-unreadable` if assets that cannot be opened should also fail the job
 | `NODATA_NOT_IN_HEADER` | WARN | STAC declares `nodata` but the header has no nodata tag. This does not prove the declaration wrong, because the fill value may still be used in the pixels |
 | `SCALE_MISMATCH` / `OFFSET_MISMATCH` | WARN | declared scale/offset ≠ raster header scale/offset |
 | `DUPLICATE_DATA_HREF` | WARN | several data assets point to the same href |
+| `DUPLICATE_HREF_DIFFERENT_BANDS` | WARN | several data assets point to the same href **and** declare different band identities (band `name`, `eo:common_name`, or `sar:polarizations`), so at most one declaration can describe that file. Replaces `DUPLICATE_DATA_HREF` for that group. Assets that use different identifier kinds (e.g. one only `name`, the other only `common_name`) are not compared |
+| `EO_BAND_COUNT_MISMATCH` | WARN | asset-level `eo:bands` length ≠ raster band count. Checked only when the asset has neither `bands` nor `raster:bands`. Item-level `eo:bands` (all bands across assets) is never compared per asset, and trailing alpha bands (RGBA visual COGs) are ignored |
+| `FILE_SIZE_MISMATCH` | WARN (opt-in: `--check-file-size`) | asset `file:size` ≠ actual size (local `os.stat`, or the total in `Content-Range` from a 1-byte HTTP range GET). Skipped for `s3://`/`gs://`, encoded responses, unknown totals and access failures |
 | `ASSET_UNREADABLE` | WARN (access failure) / ERROR (missing local file in a local catalog) | the asset could not be opened. It is ERROR only when a local catalog references a local file that cannot be opened. Remote hrefs, and `file://` or local-path hrefs inside a *remote* catalog (e.g. HPC-internal paths), are access failures and give WARN. Use `--fail-unreadable` to make every unreadable asset an ERROR |
 | `NO_RASTER_ASSETS` | WARN | nothing was inspected: no selected data-role GeoTIFF/JPEG2000 assets |
 
@@ -212,7 +215,7 @@ Resolver failures are `ASSET_RESOLVE_FAILED` (WARN unless `--fail-unreadable`). 
 - **GeoParquet**: no semantic validation of GeoParquet assets.
 - **Authenticated catalogs**: only Planetary Computer signing is built in (optional extra). Other providers (CDSE, NASA Earthdata, USGS EROS, requester-pays S3) need GDAL configuration or your own resolver; without it their assets are reported as unreadable (WARN).
 - **Vertical CRS**: the vertical component of a compound CRS cannot be verified from a 2D raster header (`CRS_VERTICAL_UNVERIFIED`).
-- **Not every STAC extension** is covered, only the projection fields, bands/raster-band fields and duplicate hrefs listed above.
+- **Not every STAC extension** is covered, only the projection fields, bands/raster-band fields, asset-level `eo:bands` count, opt-in `file:size` and duplicate hrefs listed above. `file:checksum` is not verified.
 - **Not compared**: Item `geometry`, `bbox` and `gsd` are deliberately not treated as exact raster invariants. Pixel values and scientific correctness are not checked.
 - A Collection audit covers the **first N Items** returned (`--limit`), not a random sample.
 - Catalogs whose assets live on a private filesystem (e.g. HPC-internal `file://` paths), or behind authentication or bot protection, cannot be audited from outside. They produce warnings only.
