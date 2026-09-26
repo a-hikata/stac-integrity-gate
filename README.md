@@ -182,7 +182,7 @@ Credentials and signing are not handled by the tool. Configure them the way GDAL
 
 ## Known limitations
 
-- **Zarr**: no semantic validation of Zarr stores.
+- **Zarr** (prototype, optional extra `pip install "stac-integrity-gate[zarr]"`): Zarr v2/v3 array metadata is compared with `proj:shape`, `data_type`, `nodata` and scale/offset (`ZARR_DOUBLE_SCALING_RISK` WARN when STAC repeats CF `scale_factor`/`add_offset`). CRS and datacube fields are not compared. Without the extra, Zarr assets are skipped with a `ZARR_SUPPORT_UNAVAILABLE` WARN. See [docs/zarr-design.md](docs/zarr-design.md).
 - **GeoParquet**: no semantic validation of GeoParquet assets.
 - **Authenticated catalogs**: no built-in authentication or URL signing for arbitrary providers. Assets needing credentials are reported as unreadable (WARN).
 - **Vertical CRS**: the vertical component of a compound CRS cannot be verified from a 2D raster header (`CRS_VERTICAL_UNVERIFIED`).

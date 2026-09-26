@@ -482,6 +482,8 @@ def audit_item_dict(
     findings: list[Finding] = []
     checked = 0
     skipped = 0
+    zarr_unavailable: list[str] = []
+    from . import zarr_checks  # local import: zarr_checks imports this module
 
     assets = item.get("assets") or {}
     if not isinstance(assets, dict):
@@ -527,6 +529,19 @@ def audit_item_dict(
             skipped += 1
             continue
         href = _resolve_href(source, str(href))
+        if zarr_checks.is_zarr_asset(asset, href):
+            # Optional extra, metadata-only. See docs/zarr-design.md.
+            if data_assets_only and not _is_data_asset(asset):
+                skipped += 1
+            elif zarr_checks.zarr_module() is None:
+                skipped += 1
+                zarr_unavailable.append(str(key))
+            else:
+                checked += 1
+                findings.extend(
+                    zarr_checks.audit_zarr_asset(item, asset, key, href, source, unreadable_severity)
+                )
+            continue
         if not _is_raster_asset(asset, href):
             skipped += 1
             continue
@@ -569,6 +584,9 @@ def audit_item_dict(
                     None,
                 )
             )
+
+    if zarr_unavailable:
+        findings.append(zarr_checks.unavailable_finding(zarr_unavailable))
 
     if checked == 0:
         findings.append(
