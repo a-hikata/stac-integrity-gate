@@ -1,0 +1,15 @@
+# Dev-only lint configuration (ruff is not a runtime or test dependency).
+# Scope: shipped package, tests and the bundled benchmark script.
+# `benchmark/` and `research/` hold one-off research tooling that is not
+# shipped, so they are excluded. Formatting (`ruff format`) is deliberately
+# not enforced to avoid a mass reformat of existing code.
+target-version = "py310"
+extend-exclude = ["benchmark", "research", "release"]
+
+[lint]
+# Ruff's default rule set (pyflakes + pycodestyle E4/E7/E9).
+select = ["E4", "E7", "E9", "F"]
+
+[lint.per-file-ignores]
+# The script inserts the repository root into sys.path before importing the package.
+"scripts/public_benchmark.py" = ["E402"]
