@@ -1,0 +1,292 @@
+{
+  "schema_version": 1,
+  "description": "Regression cases derived from the Wave 1/2/3 live validations. Offline cases build minimal fixtures at run time; live cases are opt-in (--live).",
+  "cases": [
+    {
+      "id": "e84-s2-legacy-aot",
+      "family": "grid-resolution-mismatch",
+      "role": "known-bad",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Element84 Earth Search",
+        "collection": "sentinel-2-l2a (legacy)",
+        "asset": "aot",
+        "wave": 1,
+        "reference": "https://github.com/Element84/earth-search/issues/48",
+        "observed": "proj:shape 5490x5490 / 20 m declared; header 1830x1830 / 60 m; scale 0.001 declared vs 1.0 in header"
+      },
+      "fixture": {"builder": "e84_s2_legacy_aot"},
+      "expected": {
+        "findings": [
+          {"code": "SHAPE_MISMATCH", "severity": "ERROR"},
+          {"code": "TRANSFORM_MISMATCH", "severity": "ERROR"},
+          {"code": "SCALE_MISMATCH", "severity": "WARN"}
+        ],
+        "exit_code": 1
+      },
+      "notes": "Grid minimized 1/305 keeping the 3:1 ratio. Confirmed live on 19 items 2018-2026 by an independent (non-GDAL) header reader."
+    },
+    {
+      "id": "pc-3dep-2013-pixel-size",
+      "family": "pixel-size-mismatch",
+      "role": "known-bad",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Microsoft Planetary Computer",
+        "collection": "3dep-seamless",
+        "wave": 2,
+        "reference": "docs/validation-evidence.md (Wave 2, failure family F1)",
+        "observed": "proj:transform pixel size 1e-05 declared; header 9.259e-05 (1/3 arc-second); 34/34 opened 2013 items"
+      },
+      "fixture": {"builder": "pc_3dep_2013_pixel_size"},
+      "expected": {
+        "findings": [
+          {"code": "TRANSFORM_MISMATCH", "severity": "ERROR"},
+          {"code": "CRS_VERTICAL_UNVERIFIED", "severity": "WARN"}
+        ],
+        "exit_code": 1
+      },
+      "notes": "Item declares compound EPSG:5498 like the live items, so the vertical-CRS WARN is expected alongside the ERROR."
+    },
+    {
+      "id": "pc-3dep-compound-crs",
+      "family": "compound-crs",
+      "role": "control",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Microsoft Planetary Computer",
+        "collection": "3dep-seamless",
+        "wave": 2,
+        "reference": "docs/validation-evidence.md (Wave 2, compound CRS fix)",
+        "observed": "proj:epsg 5498 (NAD83 + NAVD88 height) declared; GeoTIFF header EPSG:4269 (horizontal only)"
+      },
+      "fixture": {"builder": "pc_3dep_compound_crs"},
+      "expected": {
+        "findings": [{"code": "CRS_VERTICAL_UNVERIFIED", "severity": "WARN"}],
+        "exit_code": 0
+      },
+      "notes": "Former false positive (CRS_MISMATCH ERROR before Wave 2). Must never be an ERROR."
+    },
+    {
+      "id": "pc-3dep-2019-shape-off-by-one",
+      "family": "shape-off-by-one",
+      "role": "known-bad",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Microsoft Planetary Computer",
+        "collection": "3dep-seamless",
+        "wave": 2,
+        "reference": "docs/validation-evidence.md (Wave 2, failure family F2)",
+        "observed": "proj:shape 10813 declared; header 10812"
+      },
+      "fixture": {"builder": "pc_3dep_2019_shape"},
+      "expected": {
+        "findings": [
+          {"code": "SHAPE_MISMATCH", "severity": "ERROR"},
+          {"code": "CRS_VERTICAL_UNVERIFIED", "severity": "WARN"}
+        ],
+        "exit_code": 1
+      },
+      "notes": "Minimized to 13 declared vs 12 actual."
+    },
+    {
+      "id": "nasa-ghg-float-epsg",
+      "family": "numeric-epsg-normalization",
+      "role": "control",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "NASA GHG Center / VEDA",
+        "collection": "(multiple)",
+        "wave": 2,
+        "reference": "docs/validation-evidence.md (Wave 2, float EPSG fix)",
+        "observed": "proj:epsg serialized as 4326.0"
+      },
+      "fixture": {"builder": "nasa_ghg_float_epsg"},
+      "expected": {"findings": [], "exit_code": 0},
+      "notes": "Former false positive (CRS_UNPARSEABLE). Must produce no finding."
+    },
+    {
+      "id": "dea-nidem-crs-nodata",
+      "family": "crs-mismatch",
+      "role": "known-bad",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Digital Earth Australia",
+        "collection": "nidem",
+        "wave": 3,
+        "reference": "Wave 3 blind audit (no upstream issue found)",
+        "observed": "proj:code EPSG:4326 declared; header EPSG:3577 (Australian Albers); STAC nodata -9999 with no nodata tag in header"
+      },
+      "fixture": {"builder": "dea_nidem_crs_nodata"},
+      "expected": {
+        "findings": [
+          {"code": "CRS_MISMATCH", "severity": "ERROR"},
+          {"code": "NODATA_NOT_IN_HEADER", "severity": "WARN"}
+        ],
+        "exit_code": 1
+      },
+      "notes": "NODATA_NOT_IN_HEADER was a Wave 3 false positive when it was an ERROR (FP-2); it must stay a WARN."
+    },
+    {
+      "id": "dea-mstp-shape-off-by-one",
+      "family": "shape-off-by-one",
+      "role": "known-bad",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Digital Earth Australia",
+        "collection": "multi_scale_topographic_position",
+        "wave": 3,
+        "reference": "Wave 3 blind audit (no upstream issue found)",
+        "observed": "proj:shape 1199 declared; header 1200"
+      },
+      "fixture": {"builder": "dea_mstp_shape"},
+      "expected": {"findings": [{"code": "SHAPE_MISMATCH", "severity": "ERROR"}], "exit_code": 1},
+      "notes": "Minimized to 4 declared vs 5 actual."
+    },
+    {
+      "id": "dlr-terrabyte-remote-file-href",
+      "family": "access-not-semantic",
+      "role": "control",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "DLR terrabyte",
+        "collection": "sentinel-2-l2a-maja",
+        "wave": 3,
+        "reference": "Wave 3 blind audit, FP-1",
+        "observed": "remote STAC API items with file:// hrefs into the publisher's internal filesystem"
+      },
+      "fixture": {"builder": "dlr_terrabyte_file_href"},
+      "expected": {"findings": [{"code": "ASSET_UNREADABLE", "severity": "WARN"}], "exit_code": 0},
+      "notes": "Remote catalog is simulated offline (URL served from a local file). Former false positive (ERROR, exit 1) before the RC."
+    },
+    {
+      "id": "nrp-rap-pfg-band-count-item",
+      "family": "band-count-mismatch",
+      "role": "known-bad",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Boettiger Lab / NRP Nautilus",
+        "collection": "rap-pfg-cover",
+        "wave": 1,
+        "reference": "https://github.com/boettiger-lab/data-workflows/issues/666",
+        "observed": "historical: 1 declared band vs 6-band COG (fixed upstream 2026-09-14)"
+      },
+      "fixture": {"builder": "nrp_rap_pfg_item"},
+      "expected": {"findings": [{"code": "BAND_COUNT_MISMATCH", "severity": "ERROR"}], "exit_code": 1},
+      "notes": "Uses the committed demo_bad/ fixture."
+    },
+    {
+      "id": "nrp-rap-pfg-band-count-collection",
+      "family": "band-count-mismatch",
+      "role": "known-bad",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Boettiger Lab / NRP Nautilus",
+        "collection": "rap-pfg-cover (Collection asset)",
+        "wave": 1,
+        "reference": "https://github.com/boettiger-lab/data-workflows/issues/666",
+        "observed": "historical: STAC 1.1 Collection asset declaring 1 band for a 6-band COG"
+      },
+      "fixture": {"builder": "nrp_rap_pfg_collection"},
+      "expected": {"findings": [{"code": "BAND_COUNT_MISMATCH", "severity": "ERROR"}], "exit_code": 1},
+      "notes": "Uses the committed demo_collection_bad/ fixture via the collection command."
+    },
+    {
+      "id": "e84-s2-c1-red-control",
+      "family": "clean-control",
+      "role": "control",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Element84 Earth Search",
+        "collection": "sentinel-2-c1-l2a",
+        "asset": "red",
+        "wave": 1,
+        "reference": "benchmark/targets.json earth-search-current-s2-red-control",
+        "observed": "clean: 10 m grid, shape/transform/bbox/bands/scale/offset all match"
+      },
+      "fixture": {"builder": "e84_s2_c1_red_control"},
+      "expected": {"findings": [], "exit_code": 0},
+      "notes": "Exercises proj:bbox, header scale/offset and nodata on a clean asset."
+    },
+    {
+      "id": "cop-dem-pixel-is-point-control",
+      "family": "clean-control",
+      "role": "control",
+      "kind": "offline-fixture",
+      "source": {
+        "publisher": "Element84 Earth Search",
+        "collection": "cop-dem-glo-30",
+        "wave": 1,
+        "reference": "benchmark/targets.json earth-search-cop-dem-control",
+        "observed": "clean: PixelIsPoint (AREA_OR_POINT=Point) DEM tiles"
+      },
+      "fixture": {"builder": "cop_dem_pixel_is_point_control"},
+      "expected": {"findings": [], "exit_code": 0},
+      "notes": "Guards against half-pixel PixelIsPoint handling producing TRANSFORM/BBOX false positives."
+    },
+    {
+      "id": "live-e84-s2-legacy-aot",
+      "family": "grid-resolution-mismatch",
+      "role": "known-bad",
+      "kind": "live",
+      "source": {"publisher": "Element84 Earth Search", "collection": "sentinel-2-l2a (legacy)", "wave": 1,
+                 "reference": "https://github.com/Element84/earth-search/issues/48"},
+      "live": {"target": "earth-search-legacy-aot-known-bad"},
+      "expected": {"signal": "MISMATCH_FOUND",
+                   "findings": [{"code": "SHAPE_MISMATCH", "severity": "ERROR"},
+                                {"code": "TRANSFORM_MISMATCH", "severity": "ERROR"}]},
+      "notes": "Live counterpart of e84-s2-legacy-aot."
+    },
+    {
+      "id": "live-e84-s2-c1-red-control",
+      "family": "clean-control",
+      "role": "control",
+      "kind": "live",
+      "source": {"publisher": "Element84 Earth Search", "collection": "sentinel-2-c1-l2a", "wave": 1},
+      "live": {"target": "earth-search-current-s2-red-control"},
+      "expected": {"signal": "NO_MISMATCH_FOUND"}
+    },
+    {
+      "id": "live-cop-dem-control",
+      "family": "clean-control",
+      "role": "control",
+      "kind": "live",
+      "source": {"publisher": "Element84 Earth Search", "collection": "cop-dem-glo-30", "wave": 1},
+      "live": {"target": "earth-search-cop-dem-control"},
+      "expected": {"signal": "NO_MISMATCH_FOUND"},
+      "notes": "Needs unsigned S3 reads (the runner sets AWS_NO_SIGN_REQUEST=YES unless already set)."
+    },
+    {
+      "id": "live-nrp-rap-pfg",
+      "family": "band-count-mismatch",
+      "role": "control",
+      "kind": "live",
+      "source": {"publisher": "Boettiger Lab / NRP Nautilus", "collection": "rap-pfg-cover", "wave": 1,
+                 "reference": "https://github.com/boettiger-lab/data-workflows/issues/666"},
+      "live": {"target": "nrp-rap-pfg-known-bad"},
+      "expected": {"signal": "NO_MISMATCH_FOUND"},
+      "notes": "Fixed upstream 2026-09-14, so live it is now a clean control. targets.json still says MISMATCH_FOUND (historical); the manifest expectation takes precedence."
+    },
+    {
+      "id": "live-dea-nidem",
+      "family": "crs-mismatch",
+      "role": "known-bad",
+      "kind": "live",
+      "source": {"publisher": "Digital Earth Australia", "collection": "nidem", "wave": 3},
+      "live": {"kind": "item",
+               "source": "https://explorer.dea.ga.gov.au/stac/collections/nidem/items/01481d3e-8c08-4ea7-8100-cc03d55689b2"},
+      "expected": {"signal": "MISMATCH_FOUND", "findings": [{"code": "CRS_MISMATCH", "severity": "ERROR"}]},
+      "notes": "DEA explorer has intermittently returned WAF blocks; that is an INCONCLUSIVE operational failure, not a regression."
+    },
+    {
+      "id": "live-dlr-terrabyte-file-href",
+      "family": "access-not-semantic",
+      "role": "control",
+      "kind": "live",
+      "source": {"publisher": "DLR terrabyte", "collection": "sentinel-2-l2a-maja", "wave": 3},
+      "live": {"kind": "item",
+               "source": "https://stac.terrabyte.lrz.de/public/api/collections/sentinel-2-l2a-maja/items/SENTINEL2A_20221217-120700-198_L2A_T28UGC_C_V1-1"},
+      "expected": {"signal": "INCONCLUSIVE", "findings": [{"code": "ASSET_UNREADABLE", "severity": "WARN"}]}
+    }
+  ]
+}

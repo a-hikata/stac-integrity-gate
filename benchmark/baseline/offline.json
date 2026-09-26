@@ -1,0 +1,343 @@
+{
+  "cases": [
+    {
+      "audit_s": 0.007,
+      "build_s": 0.0087,
+      "builder": "e84_s2_legacy_aot",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 1,
+      "family": "grid-resolution-mismatch",
+      "findings": [
+        {
+          "asset": "aot",
+          "code": "SCALE_MISMATCH",
+          "field": "bands[0].scale",
+          "severity": "WARN"
+        },
+        {
+          "asset": "aot",
+          "code": "SHAPE_MISMATCH",
+          "field": "proj:shape",
+          "severity": "ERROR"
+        },
+        {
+          "asset": "aot",
+          "code": "TRANSFORM_MISMATCH",
+          "field": "proj:transform",
+          "severity": "ERROR"
+        }
+      ],
+      "id": "e84-s2-legacy-aot",
+      "kind": "offline-fixture",
+      "role": "known-bad",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.0025,
+      "build_s": 0.0009,
+      "builder": "pc_3dep_2013_pixel_size",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 1,
+      "family": "pixel-size-mismatch",
+      "findings": [
+        {
+          "asset": "data",
+          "code": "CRS_VERTICAL_UNVERIFIED",
+          "field": "proj:epsg",
+          "severity": "WARN"
+        },
+        {
+          "asset": "data",
+          "code": "TRANSFORM_MISMATCH",
+          "field": "proj:transform",
+          "severity": "ERROR"
+        }
+      ],
+      "id": "pc-3dep-2013-pixel-size",
+      "kind": "offline-fixture",
+      "role": "known-bad",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.001,
+      "build_s": 0.0006,
+      "builder": "pc_3dep_compound_crs",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 0,
+      "family": "compound-crs",
+      "findings": [
+        {
+          "asset": "data",
+          "code": "CRS_VERTICAL_UNVERIFIED",
+          "field": "proj:epsg",
+          "severity": "WARN"
+        }
+      ],
+      "id": "pc-3dep-compound-crs",
+      "kind": "offline-fixture",
+      "role": "control",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.0009,
+      "build_s": 0.0005,
+      "builder": "pc_3dep_2019_shape",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 1,
+      "family": "shape-off-by-one",
+      "findings": [
+        {
+          "asset": "data",
+          "code": "CRS_VERTICAL_UNVERIFIED",
+          "field": "proj:epsg",
+          "severity": "WARN"
+        },
+        {
+          "asset": "data",
+          "code": "SHAPE_MISMATCH",
+          "field": "proj:shape",
+          "severity": "ERROR"
+        }
+      ],
+      "id": "pc-3dep-2019-shape-off-by-one",
+      "kind": "offline-fixture",
+      "role": "known-bad",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.0009,
+      "build_s": 0.0005,
+      "builder": "nasa_ghg_float_epsg",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 0,
+      "family": "numeric-epsg-normalization",
+      "findings": [],
+      "id": "nasa-ghg-float-epsg",
+      "kind": "offline-fixture",
+      "role": "control",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.0015,
+      "build_s": 0.0008,
+      "builder": "dea_nidem_crs_nodata",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 1,
+      "family": "crs-mismatch",
+      "findings": [
+        {
+          "asset": "nidem",
+          "code": "CRS_MISMATCH",
+          "field": "proj:code",
+          "severity": "ERROR"
+        },
+        {
+          "asset": "nidem",
+          "code": "NODATA_NOT_IN_HEADER",
+          "field": "bands[0].nodata",
+          "severity": "WARN"
+        }
+      ],
+      "id": "dea-nidem-crs-nodata",
+      "kind": "offline-fixture",
+      "role": "known-bad",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.0008,
+      "build_s": 0.0005,
+      "builder": "dea_mstp_shape",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 1,
+      "family": "shape-off-by-one",
+      "findings": [
+        {
+          "asset": "mstp",
+          "code": "SHAPE_MISMATCH",
+          "field": "proj:shape",
+          "severity": "ERROR"
+        }
+      ],
+      "id": "dea-mstp-shape-off-by-one",
+      "kind": "offline-fixture",
+      "role": "known-bad",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.0008,
+      "build_s": 0.0002,
+      "builder": "dlr_terrabyte_file_href",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 0,
+      "family": "access-not-semantic",
+      "findings": [
+        {
+          "asset": "B02",
+          "code": "ASSET_UNREADABLE",
+          "field": "href",
+          "severity": "WARN"
+        }
+      ],
+      "id": "dlr-terrabyte-remote-file-href",
+      "kind": "offline-fixture",
+      "role": "control",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.0008,
+      "build_s": 0.0001,
+      "builder": "nrp_rap_pfg_item",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 1,
+      "family": "band-count-mismatch",
+      "findings": [
+        {
+          "asset": "data",
+          "code": "BAND_COUNT_MISMATCH",
+          "field": "bands",
+          "severity": "ERROR"
+        }
+      ],
+      "id": "nrp-rap-pfg-band-count-item",
+      "kind": "offline-fixture",
+      "role": "known-bad",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.0008,
+      "build_s": 0.0001,
+      "builder": "nrp_rap_pfg_collection",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 1,
+      "family": "band-count-mismatch",
+      "findings": [
+        {
+          "asset": "data",
+          "code": "BAND_COUNT_MISMATCH",
+          "field": "bands",
+          "severity": "ERROR"
+        }
+      ],
+      "id": "nrp-rap-pfg-band-count-collection",
+      "kind": "offline-fixture",
+      "role": "known-bad",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.001,
+      "build_s": 0.0007,
+      "builder": "e84_s2_c1_red_control",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 0,
+      "family": "clean-control",
+      "findings": [],
+      "id": "e84-s2-c1-red-control",
+      "kind": "offline-fixture",
+      "role": "control",
+      "status": "PASS"
+    },
+    {
+      "audit_s": 0.0008,
+      "build_s": 0.0008,
+      "builder": "cop_dem_pixel_is_point_control",
+      "checks": {
+        "exit_code_ok": true,
+        "match": "exact",
+        "missing": [],
+        "passed": true,
+        "unexpected": []
+      },
+      "exit_code": 0,
+      "family": "clean-control",
+      "findings": [],
+      "id": "cop-dem-pixel-is-point-control",
+      "kind": "offline-fixture",
+      "role": "control",
+      "status": "PASS"
+    }
+  ],
+  "environment": {
+    "gdal": "3.12.4",
+    "git_commit": "a6e23c0",
+    "platform": "Darwin-arm64",
+    "python": "3.12.13",
+    "rasterio": "1.5.1",
+    "stac_integrity": "0.3.0rc1"
+  },
+  "generated_at": "2026-09-26T10:45:52+00:00",
+  "mode": "offline",
+  "schema_version": 1,
+  "summary": {
+    "audit_s_total": 0.0188,
+    "error": 0,
+    "fail": 0,
+    "pass": 12,
+    "total": 12
+  }
+}
