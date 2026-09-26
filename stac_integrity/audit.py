@@ -5,7 +5,7 @@ import math
 import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 from urllib.parse import urljoin, urlparse
 
 import rasterio
@@ -445,6 +445,59 @@ def _check_bands(asset: dict[str, Any], key: str, src: Any) -> Iterable[Finding]
                 )
 
 
+@dataclass(frozen=True)
+class RasterHeader:
+    """Immutable snapshot of the raster header fields the checks compare.
+
+    Snapshots (not open dataset handles) are what gets cached and shared
+    between threads.
+    """
+
+    crs: Any
+    width: int
+    height: int
+    transform: Any
+    bounds: Any
+    count: int
+    dtypes: tuple
+    nodatavals: tuple
+    scales: tuple
+    offsets: tuple
+
+    @classmethod
+    def from_dataset(cls, src: Any) -> "RasterHeader":
+        return cls(
+            crs=src.crs,
+            width=src.width,
+            height=src.height,
+            transform=src.transform,
+            bounds=src.bounds,
+            count=src.count,
+            dtypes=tuple(src.dtypes),
+            nodatavals=tuple(src.nodatavals),
+            scales=tuple(src.scales),
+            offsets=tuple(src.offsets),
+        )
+
+
+# Conservative GDAL-level retry for transient HTTP failures while reading
+# remote raster headers (429/5xx). Semantic results are never retried.
+REMOTE_GDAL_ENV = {
+    "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
+    "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.tiff,.jp2",
+    "GDAL_HTTP_MAX_RETRY": "2",
+    "GDAL_HTTP_RETRY_DELAY": "1",
+}
+
+
+def read_raster_header(href: str) -> RasterHeader:
+    """Open ``href`` with rasterio and return a header snapshot."""
+    env_kwargs = dict(REMOTE_GDAL_ENV) if _is_remote(href) else {}
+    with rasterio.Env(**env_kwargs):
+        with rasterio.open(href) as src:
+            return RasterHeader.from_dataset(src)
+
+
 def _is_raster_asset(asset: dict[str, Any], href: str) -> bool:
     media_type = str(asset.get("type", "")).lower()
     path = urlparse(href).path.lower()
@@ -477,7 +530,14 @@ def audit_item_dict(
     tolerance_px: float = 0.01,
     data_assets_only: bool = True,
     unreadable_severity: str = "WARN",
+    header_reader: Callable[[str], Any] | None = None,
 ) -> AuditResult:
+    """Audit one STAC Item dict.
+
+    ``header_reader`` maps a resolved href to a raster header object exposing
+    the attributes the checks use (see :class:`RasterHeader`). It defaults to
+    :func:`read_raster_header`; collection audits pass a caching reader.
+    """
     item_id = str(item.get("id", "<unknown>"))
     findings: list[Finding] = []
     checked = 0
@@ -536,19 +596,12 @@ def audit_item_dict(
 
         checked += 1
         try:
-            env_kwargs = {}
-            if _is_remote(href):
-                env_kwargs = {
-                    "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
-                    "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.tiff,.jp2",
-                }
-            with rasterio.Env(**env_kwargs):
-                with rasterio.open(href) as src:
-                    findings.extend(_check_crs(item, asset, key, src))
-                    findings.extend(_check_shape(item, asset, key, src))
-                    findings.extend(_check_transform(item, asset, key, src, tolerance_px))
-                    findings.extend(_check_bbox(item, asset, key, src, tolerance_px))
-                    findings.extend(_check_bands(asset, key, src))
+            src = (header_reader or read_raster_header)(href)
+            findings.extend(_check_crs(item, asset, key, src))
+            findings.extend(_check_shape(item, asset, key, src))
+            findings.extend(_check_transform(item, asset, key, src, tolerance_px))
+            findings.extend(_check_bbox(item, asset, key, src, tolerance_px))
+            findings.extend(_check_bands(asset, key, src))
         except Exception as exc:
             severity = unreadable_severity.upper()
             if severity not in {"WARN", "ERROR"}:
