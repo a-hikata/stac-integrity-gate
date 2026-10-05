@@ -1,0 +1,45 @@
+name: Wave 4 blind provider sweep
+on:
+  push:
+    branches: [research/wave4-broad-sweep]
+    paths:
+      - 'research/wave4_broad_sweep.py'
+      - '.github/workflows/wave4-broad-sweep.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[test]'
+      - name: Run regression tests first
+        run: pytest -q
+      - name: Run blind cross-provider sweep
+        env:
+          AWS_NO_SIGN_REQUEST: 'YES'
+        run: |
+          python research/wave4_broad_sweep.py             --collections-per-provider 8             --items-per-collection 5             --workers 4             --out-dir research/wave4-results
+      - name: Show result
+        if: always()
+        run: |
+          test -f research/wave4-results/summary.json && cat research/wave4-results/summary.json || true
+          test -f research/wave4-results/manifest.json && cat research/wave4-results/manifest.json || true
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wave4-broad-sweep
+          path: research/wave4-results/
+          if-no-files-found: warn
+          retention-days: 14
